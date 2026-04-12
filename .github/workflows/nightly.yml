@@ -1,0 +1,26 @@
+name: Nightly Integration Tests
+
+on:
+  schedule:
+    # 09:00 UTC every day — roughly 3/4 AM US CT, after prod is idle
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - run: npm ci
+
+      - run: npm run test:integration
+        env:
+          FFMPEG_MICRO_API_KEY: ${{ secrets.FFMPEG_MICRO_API_KEY }}

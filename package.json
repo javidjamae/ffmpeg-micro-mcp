@@ -1,0 +1,61 @@
+{
+  "name": "@ffmpeg-micro/mcp-server",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server for the FFmpeg Micro video transcoding API. Lets AI agents (Claude Desktop, Cursor, etc.) create, monitor, and download transcodes through tool calls.",
+  "type": "module",
+  "bin": {
+    "ffmpeg-micro-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run --exclude 'tests/integration/**'",
+    "test:watch": "vitest --exclude 'tests/integration/**'",
+    "test:integration": "vitest run tests/integration",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/javidjamae/ffmpeg-micro-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/javidjamae/ffmpeg-micro-mcp/issues"
+  },
+  "homepage": "https://github.com/javidjamae/ffmpeg-micro-mcp#readme",
+  "license": "MIT",
+  "author": "Javid Jamae",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ffmpeg",
+    "ffmpeg-micro",
+    "video",
+    "transcode",
+    "transcoding",
+    "claude",
+    "anthropic",
+    "ai",
+    "ai-tools"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
+}
