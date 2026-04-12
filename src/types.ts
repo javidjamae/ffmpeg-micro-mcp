@@ -1,5 +1,5 @@
 /**
- * Type definitions mirroring the FFmpeg Micro REST API (see specs/openapi.yaml).
+ * Type definitions mirroring the FFmpeg Micro REST API.
  * These are hand-maintained rather than generated for v0.1.0 to keep the repo
  * simple. They can be switched to openapi-typescript output later if the API
  * surface grows.
