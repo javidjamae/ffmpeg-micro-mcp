@@ -21,12 +21,31 @@ Exposes six tools that map onto FFmpeg Micro's public API:
 
 ## Requirements
 
-- Node.js **22.14** or later
 - An FFmpeg Micro API key — sign up at [ffmpeg-micro.com](https://ffmpeg-micro.com)
 
-## Install & run (Claude Desktop)
+## Connect via HTTP (recommended)
 
-Add this to your Claude Desktop config file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+The easiest way — no local install, no Node.js required. Add this to your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "ffmpeg-micro": {
+      "type": "http",
+      "url": "https://mcp.ffmpeg-micro.com",
+      "headers": {
+        "Authorization": "Bearer your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+## Connect via stdio (local install)
+
+Runs the server as a local process using `npx`. Requires Node.js 22.14 or later.
+
+Add this to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
 
 ```json
 {
@@ -35,31 +54,14 @@ Add this to your Claude Desktop config file (`~/Library/Application Support/Clau
       "command": "npx",
       "args": ["-y", "@ffmpeg-micro/mcp-server"],
       "env": {
-        "FFMPEG_MICRO_API_KEY": "ssk_your_api_key_here"
+        "FFMPEG_MICRO_API_KEY": "your_api_key_here"
       }
     }
   }
 }
 ```
 
-Restart Claude Desktop and the FFmpeg Micro tools will appear in the tool picker. `npx -y` will fetch the latest version each time.
-
-## Install & run (Cursor, Continue, other MCP clients)
-
-Any MCP client that supports stdio-transport servers can run this the same way. Point it at:
-
-- **Command:** `npx`
-- **Args:** `["-y", "@ffmpeg-micro/mcp-server"]`
-- **Env:** `FFMPEG_MICRO_API_KEY=<your key>`
-
-## Configuration
-
-Environment variables:
-
-| Variable | Required | Default | Purpose |
-| --- | --- | --- | --- |
-| `FFMPEG_MICRO_API_KEY` | yes | — | Your FFmpeg Micro API key, sent as `Authorization: Bearer <key>`. |
-| `FFMPEG_MICRO_API_URL` | no | `https://api.ffmpeg-micro.com` | Override for staging or self-hosted gateway instances. |
+`npx -y` fetches the latest version each time. Any MCP client that supports stdio servers (Cursor, Continue, etc.) works the same way.
 
 ## Example prompts
 
@@ -70,17 +72,15 @@ Once wired up, you can ask things like:
 - "Cancel job `b5f5a9c0-9e33-4e77-8a5b-6a0c2cd9c0b3`."
 - "Add a text overlay that says 'Hello World' to `gs://my-bucket/input.mp4` and give me back the result."
 
-Claude will pick the right tool(s) based on the task.
-
 ## Development
 
 ```bash
 git clone https://github.com/javidjamae/ffmpeg-micro-mcp.git
 cd ffmpeg-micro-mcp
-npm install
-npm run build
-npm test
+./scripts/setup.sh
 ```
+
+`setup.sh` installs dependencies, builds, and wires up the git hooks.
 
 Point your MCP client at the local build to iterate:
 
@@ -102,10 +102,16 @@ The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is the fa
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
+To run the HTTP server locally against a local API gateway:
+
+```bash
+FFMPEG_MICRO_API_URL=http://localhost:8081 npm run serve
+```
+
 ### Running integration tests locally
 
 ```bash
-FFMPEG_MICRO_API_KEY=ssk_... npm run test:integration
+FFMPEG_MICRO_API_KEY=your_key npm run test:integration
 ```
 
 Integration tests hit the real FFmpeg Micro production API. They are read-only (no jobs are created).
@@ -114,14 +120,9 @@ Integration tests hit the real FFmpeg Micro production API. They are read-only (
 
 Releases are published to npm via [trusted publishing](https://docs.npmjs.com/trusted-publishers/) from GitHub Actions — no npm tokens stored in the repo. To cut a release:
 
-1. Bump the version in `package.json`.
-2. Commit and tag: `git commit -am "Release vX.Y.Z" && git tag vX.Y.Z`.
-3. Push: `git push && git push --tags`.
-4. The `release.yml` workflow runs tests, builds, and publishes to npm with automatic provenance attestation.
-
-## API reference
-
-The full FFmpeg Micro REST API is documented in [`specs/openapi.yaml`](./specs/openapi.yaml) (OpenAPI 3.0). The MCP tools are thin wrappers around those endpoints — if you need functionality the tools don't cover, the endpoints are directly callable with your API key.
+1. Create a branch, bump the version in `package.json`, open and merge a PR.
+2. Tag the merge commit: `git tag vX.Y.Z && git push --tags`.
+3. The `release.yml` workflow runs tests, builds, and publishes to npm with automatic provenance attestation.
 
 ## License
 
