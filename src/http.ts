@@ -66,6 +66,10 @@ export function createApp(): express.Express {
         : undefined;
 
     if (!token) {
+      res.set(
+        "WWW-Authenticate",
+        'Bearer resource_metadata="https://mcp.ffmpeg-micro.com/.well-known/oauth-protected-resource"'
+      );
       res.status(401).json({
         jsonrpc: "2.0",
         error: {
