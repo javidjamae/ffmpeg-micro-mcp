@@ -41,6 +41,15 @@ export function createApp(): express.Express {
   const app = express();
   app.use(express.json());
 
+  // RFC 9728: OAuth Protected Resource Metadata
+  // Tells MCP clients where to find the authorization server.
+  app.get("/.well-known/oauth-protected-resource", (_req, res) => {
+    res.json({
+      resource: "https://mcp.ffmpeg-micro.com",
+      authorization_servers: ["https://api.ffmpeg-micro.com"],
+    });
+  });
+
   // Health check — useful for Vercel and any uptime monitors.
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
