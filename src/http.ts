@@ -41,12 +41,31 @@ export function createApp(): express.Express {
   const app = express();
   app.use(express.json());
 
+  const GATEWAY_URL = process.env.FFMPEG_MICRO_API_URL || "https://api.ffmpeg-micro.com";
+
   // RFC 9728: OAuth Protected Resource Metadata
   // Tells MCP clients where to find the authorization server.
   app.get("/.well-known/oauth-protected-resource", (_req, res) => {
     res.json({
       resource: "https://mcp.ffmpeg-micro.com",
-      authorization_servers: ["https://api.ffmpeg-micro.com"],
+      authorization_servers: [GATEWAY_URL],
+    });
+  });
+
+  // RFC 8414: OAuth Authorization Server Metadata
+  // Some MCP clients look for this on the resource server itself rather than
+  // following the authorization_servers pointer from the protected resource
+  // metadata. We serve it here pointing to the gateway's OAuth endpoints.
+  app.get("/.well-known/oauth-authorization-server", (_req, res) => {
+    res.json({
+      issuer: GATEWAY_URL,
+      authorization_endpoint: `${GATEWAY_URL}/oauth/authorize`,
+      token_endpoint: `${GATEWAY_URL}/oauth/token`,
+      registration_endpoint: `${GATEWAY_URL}/oauth/register`,
+      response_types_supported: ["code"],
+      grant_types_supported: ["authorization_code"],
+      code_challenge_methods_supported: ["S256"],
+      token_endpoint_auth_methods_supported: ["none"],
     });
   });
 
