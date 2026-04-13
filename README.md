@@ -4,7 +4,7 @@
 [![CI](https://github.com/javidjamae/ffmpeg-micro-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/javidjamae/ffmpeg-micro-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-A [Model Context Protocol](https://modelcontextprotocol.io) server that lets AI agents — Claude Desktop, Cursor, Continue, and any other MCP-compatible client — create, monitor, and download video transcodes through the [FFmpeg Micro](https://ffmpeg-micro.com) REST API.
+A [Model Context Protocol](https://modelcontextprotocol.io) server that lets AI agents — Claude Code, Claude Desktop, Cursor, Windsurf, VS Code, and any other MCP-compatible client — create, monitor, and download video transcodes through the [FFmpeg Micro](https://ffmpeg-micro.com) REST API.
 
 ## What it does
 
@@ -19,13 +19,41 @@ Exposes six tools that map onto FFmpeg Micro's public API:
 | `get_download_url` | Generate a 10-minute signed HTTPS URL for a completed job's output file. |
 | `transcode_and_wait` | Convenience: create a job, poll until it finishes, return the signed download URL in one call. |
 
-## Requirements
+## Quick start
 
-- An FFmpeg Micro API key — sign up at [ffmpeg-micro.com](https://ffmpeg-micro.com)
+Add this to your project's `.mcp.json` (or your MCP client's config):
 
-## Connect via HTTP (recommended)
+```json
+{
+  "mcpServers": {
+    "ffmpeg-micro": {
+      "type": "http",
+      "url": "https://mcp.ffmpeg-micro.com"
+    }
+  }
+}
+```
 
-The easiest way — no local install, no Node.js required. Add this to your MCP client config:
+That's it. The first time your AI tool connects, it will open a browser window for you to sign in with your [FFmpeg Micro](https://ffmpeg-micro.com) account via OAuth. After you approve, the token is cached and you won't be asked again.
+
+No API keys to copy, no environment variables to set.
+
+## Authentication
+
+### OAuth (recommended)
+
+The MCP server supports OAuth 2.1 with PKCE and dynamic client registration. Your MCP client handles the entire flow automatically:
+
+1. Client discovers OAuth endpoints via `/.well-known/oauth-authorization-server`
+2. Client registers itself dynamically
+3. Browser opens for you to sign in and approve access
+4. Token is exchanged and cached — subsequent connections are instant
+
+This is the default when you use the config above with no `headers` or `env` block.
+
+### API key (alternative)
+
+If you prefer to use an API key directly (e.g., for automation or CI), you can pass it as a Bearer token:
 
 ```json
 {
@@ -41,11 +69,11 @@ The easiest way — no local install, no Node.js required. Add this to your MCP 
 }
 ```
 
-## Connect via stdio (local install)
+Get your API key from the [dashboard](https://www.ffmpeg-micro.com/dashboard/api-keys).
+
+### stdio (local install)
 
 Runs the server as a local process using `npx`. Requires Node.js 22.14 or later.
-
-Add this to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
 
 ```json
 {
@@ -61,16 +89,29 @@ Add this to your Claude Desktop config (`~/Library/Application Support/Claude/cl
 }
 ```
 
-`npx -y` fetches the latest version each time. Any MCP client that supports stdio servers (Cursor, Continue, etc.) works the same way.
+`npx -y` fetches the latest version each time. Any MCP client that supports stdio servers works with this config.
+
+## Compatible tools
+
+The HTTP config (OAuth) works with any MCP client that supports streamable HTTP transport:
+
+- **Claude Code** (CLI)
+- **Claude Desktop**
+- **Cursor**
+- **Windsurf**
+- **VS Code** (GitHub Copilot MCP)
+
+The stdio config works with any MCP client that supports stdio transport.
 
 ## Example prompts
 
-Once wired up, you can ask things like:
+Once connected, you can ask things like:
 
-- "Transcode `gs://my-bucket/raw.mp4` to 720p mp4 and give me the download URL when it's done."
+- "Transcode this video to 720p MP4 and give me the download URL when it's done."
+- "Crop this landscape video to a square."
+- "Add a text overlay saying 'Episode 12' to my video."
 - "List my failed jobs from this week."
 - "Cancel job `b5f5a9c0-9e33-4e77-8a5b-6a0c2cd9c0b3`."
-- "Add a text overlay that says 'Hello World' to `gs://my-bucket/input.mp4` and give me back the result."
 
 ## Development
 
