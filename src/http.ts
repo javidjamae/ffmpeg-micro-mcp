@@ -44,6 +44,8 @@ function createMcpServer(apiKey: string): McpServer {
 export function createApp(): express.Express {
   const app = express();
   app.use(express.json());
+  // OAuth token requests are application/x-www-form-urlencoded per OAuth 2.1 spec
+  app.use(express.urlencoded({ extended: false }));
 
   const GATEWAY_URL =
     process.env.FFMPEG_MICRO_API_URL || "https://api.ffmpeg-micro.com";
