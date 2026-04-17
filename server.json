@@ -7,13 +7,19 @@
     "source": "github",
     "id": "1208250823"
   },
-  "version": "0.1.1",
+  "version": "0.1.2",
   "websiteUrl": "https://ffmpeg-micro.com",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.ffmpeg-micro.com"
+    }
+  ],
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@ffmpeg-micro/mcp-server",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "transport": {
         "type": "stdio"
       },
