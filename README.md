@@ -163,21 +163,31 @@ Releases are published to [npm](https://www.npmjs.com/package/@ffmpeg-micro/mcp-
 
 ### Cutting a release
 
-From a clean `main`:
+Direct commits to `main` are blocked by `.githooks/pre-commit`, so the release goes through a PR. From a clean `main`:
 
 ```bash
 git checkout main && git pull
-git status                       # must be clean
+git status                               # must be clean
 
-npm version patch                # 0.1.0 → 0.1.1  (bug fix)
-# or: npm version minor          # 0.1.0 → 0.2.0  (feature)
-# or: npm version major          # 0.1.0 → 1.0.0  (breaking)
-# or: npm version 0.2.0-rc.1     # explicit / prerelease
-
-git push --follow-tags
+git switch -c release/vX.Y.Z
+npm version patch --no-git-tag-version   # or minor / major / explicit X.Y.Z
+git add package.json package-lock.json server.json
+git commit -m "chore(release): X.Y.Z"
+git push -u origin release/vX.Y.Z
+gh pr create --title "chore(release): X.Y.Z" --body "Release X.Y.Z"
 ```
 
-`npm version` bumps `package.json`, runs `scripts/sync-server-version.mjs` to mirror the new version into `server.json` (both `version` and `packages[0].version`), commits the two files, and creates the `vX.Y.Z` tag atomically.
+`npm version --no-git-tag-version` bumps `package.json` and runs `scripts/sync-server-version.mjs`, which mirrors the new version into `server.json` (both `version` and `packages[0].version`). No commit or tag is created yet — those come from the PR merge and the explicit `git tag` below.
+
+Review the PR, then merge it (any merge strategy is fine — the tag is created after merge, so there's no orphan-tag risk). After merge:
+
+```bash
+git checkout main && git pull
+git tag vX.Y.Z
+git push origin vX.Y.Z                   # only the tag; main is not pushed
+```
+
+The tag push triggers the release workflow.
 
 ### What CI does
 
@@ -194,7 +204,7 @@ After the workflow is green:
 
 ```bash
 npm view @ffmpeg-micro/mcp-server version
-curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.javidjamae/ffmpeg-micro-mcp" | jq '.servers[0] | {name, version}'
+curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.javidjamae/ffmpeg-micro-mcp" | jq '.servers[0].server | {name, version}'
 ```
 
 ### Rules
