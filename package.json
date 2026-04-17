@@ -1,6 +1,7 @@
 {
   "name": "@ffmpeg-micro/mcp-server",
   "version": "0.1.0",
+  "mcpName": "io.github.javidjamae/ffmpeg-micro-mcp",
   "description": "Model Context Protocol server for the FFmpeg Micro video transcoding API. Lets AI agents (Claude Desktop, Cursor, etc.) create, monitor, and download transcodes through tool calls.",
   "type": "module",
   "bin": {
@@ -13,6 +14,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "version": "node scripts/sync-server-version.mjs && git add server.json",
     "prepublishOnly": "npm run build",
     "test": "vitest run --exclude 'tests/integration/**'",
     "test:watch": "vitest --exclude 'tests/integration/**'",

@@ -56,7 +56,7 @@ build_project() {
 configure_git_hooks() {
     print_status "Configuring git hooks..."
     git config core.hooksPath .githooks
-    print_success "Git hooks configured (.githooks/pre-push active)"
+    print_success "Git hooks configured (.githooks/pre-commit active)"
 }
 
 main() {

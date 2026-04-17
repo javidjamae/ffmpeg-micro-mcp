@@ -1,0 +1,21 @@
+#!/bin/bash
+# HARD BLOCK: Prevent committing directly to main/master
+# All changes must go through a branch + PR workflow.
+
+branch="$(git symbolic-ref --short HEAD 2>/dev/null || echo '')"
+
+case "$branch" in
+  main|master)
+    echo ""
+    echo "🚫 BLOCKED: Committing directly to '$branch' is not allowed."
+    echo ""
+    echo "   Create a branch and open a PR instead:"
+    echo "   git switch -c fix/your-description"
+    echo "   git push -u origin fix/your-description"
+    echo "   gh pr create"
+    echo ""
+    exit 1
+    ;;
+esac
+
+exit 0

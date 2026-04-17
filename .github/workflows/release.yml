@@ -28,4 +28,24 @@ jobs:
 
       - run: npm test
 
+      - name: Check server.json version matches package.json
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          SRV_VERSION=$(node -p "require('./server.json').version")
+          PKG_NPM_VERSION=$(node -p "require('./server.json').packages[0].version")
+          if [ "$PKG_VERSION" != "$SRV_VERSION" ] || [ "$PKG_VERSION" != "$PKG_NPM_VERSION" ]; then
+            echo "Version mismatch: package.json=$PKG_VERSION server.json.version=$SRV_VERSION server.json.packages[0].version=$PKG_NPM_VERSION"
+            exit 1
+          fi
+
       - run: npm publish
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Login to MCP Registry via GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish
