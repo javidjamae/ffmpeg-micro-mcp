@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.javidjamae/ffmpeg-micro-mcp",
+  "description": "MCP server for the FFmpeg Micro video transcoding API — create, monitor, download transcodes.",
+  "repository": {
+    "url": "https://github.com/javidjamae/ffmpeg-micro-mcp",
+    "source": "github",
+    "id": "1208250823"
+  },
+  "version": "0.1.0",
+  "websiteUrl": "https://ffmpeg-micro.com",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@ffmpeg-micro/mcp-server",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "FFMPEG_MICRO_API_KEY",
+          "description": "API key from https://www.ffmpeg-micro.com/dashboard/api-keys",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

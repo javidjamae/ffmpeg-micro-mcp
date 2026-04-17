@@ -159,11 +159,63 @@ Integration tests hit the real FFmpeg Micro production API. They are read-only (
 
 ## Release process
 
-Releases are published to npm via [trusted publishing](https://docs.npmjs.com/trusted-publishers/) from GitHub Actions — no npm tokens stored in the repo. To cut a release:
+Releases are published to [npm](https://www.npmjs.com/package/@ffmpeg-micro/mcp-server) via [trusted publishing](https://docs.npmjs.com/trusted-publishers/) and to the [MCP Registry](https://registry.modelcontextprotocol.io) via GitHub OIDC — no tokens stored in the repo.
 
-1. Create a branch, bump the version in `package.json`, open and merge a PR.
-2. Tag the merge commit: `git tag vX.Y.Z && git push --tags`.
-3. The `release.yml` workflow runs tests, builds, and publishes to npm with automatic provenance attestation.
+### Cutting a release
+
+From a clean `main`:
+
+```bash
+git checkout main && git pull
+git status                       # must be clean
+
+npm version patch                # 0.1.0 → 0.1.1  (bug fix)
+# or: npm version minor          # 0.1.0 → 0.2.0  (feature)
+# or: npm version major          # 0.1.0 → 1.0.0  (breaking)
+# or: npm version 0.2.0-rc.1     # explicit / prerelease
+
+git push --follow-tags
+```
+
+`npm version` bumps `package.json`, runs `scripts/sync-server-version.mjs` to mirror the new version into `server.json` (both `version` and `packages[0].version`), commits the two files, and creates the `vX.Y.Z` tag atomically.
+
+### What CI does
+
+The push triggers `.github/workflows/release.yml`, which on the `vX.Y.Z` tag:
+
+1. Runs `npm run typecheck`, `npm run build`, `npm test`.
+2. Runs the **version-sync guard** — fails the build if `package.json.version`, `server.json.version`, or `server.json.packages[0].version` have drifted.
+3. `npm publish` with provenance attestation (trusted publishing via OIDC — no npm token).
+4. Installs `mcp-publisher`, authenticates with `mcp-publisher login github-oidc` (reuses the workflow's `id-token`), then runs `mcp-publisher publish` to register the new version in the MCP Registry as `io.github.javidjamae/ffmpeg-micro-mcp`.
+
+### Verify
+
+After the workflow is green:
+
+```bash
+npm view @ffmpeg-micro/mcp-server version
+curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.javidjamae/ffmpeg-micro-mcp" | jq '.servers[0] | {name, version}'
+```
+
+### Rules
+
+- **Never edit version fields in `server.json` by hand** — the sync script owns them. The CI drift guard will fail the release if they diverge from `package.json`.
+- **Never hand-edit `package.json` version and commit** — always go through `npm version` so `server.json` stays in sync and the tag is created atomically.
+- **Never tag without `npm version`** — the workflow assumes `vX.Y.Z` matches `package.json`.
+
+### Release-related files
+
+- `package.json` — source of truth for version. Also holds `mcpName` (required by the MCP Registry for npm package validation).
+- `server.json` — MCP Registry metadata. Version fields are auto-synced from `package.json`.
+- `scripts/sync-server-version.mjs` — runs during the `npm version` lifecycle.
+- `.github/workflows/release.yml` — the publish pipeline.
+
+### Troubleshooting
+
+- **`npm version` fails with "working tree not clean"** — commit or stash local changes first.
+- **CI fails at the version-sync guard step** — `server.json` was edited manually. Locally: `node scripts/sync-server-version.mjs`, commit, delete the bad tag (`git tag -d vX.Y.Z && git push --delete origin vX.Y.Z`), re-tag, re-push.
+- **`mcp-publisher publish` fails with "package not found"** — npm hasn't finished propagating the new version yet. Re-run just the failed job after ~30 seconds.
+- **`mcp-publisher publish` fails validation with "mcpName mismatch"** — `package.json` `mcpName` must equal `server.json` `name` (both should be `io.github.javidjamae/ffmpeg-micro-mcp`).
 
 ## License
 
