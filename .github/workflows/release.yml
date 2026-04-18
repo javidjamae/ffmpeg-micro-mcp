@@ -44,8 +44,10 @@ jobs:
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
 
-      - name: Login to MCP Registry via GitHub OIDC
-        run: ./mcp-publisher login github-oidc
+      - name: Login to MCP Registry via DNS
+        run: ./mcp-publisher login dns --domain ffmpeg-micro.com --private-key "$MCP_PRIVATE_KEY"
+        env:
+          MCP_PRIVATE_KEY: ${{ secrets.MCP_PRIVATE_KEY }}
 
       - name: Publish to MCP Registry
         run: ./mcp-publisher publish

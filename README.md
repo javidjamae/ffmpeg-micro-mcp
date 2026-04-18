@@ -159,7 +159,7 @@ Integration tests hit the real FFmpeg Micro production API. They are read-only (
 
 ## Release process
 
-Releases are published to [npm](https://www.npmjs.com/package/@ffmpeg-micro/mcp-server) via [trusted publishing](https://docs.npmjs.com/trusted-publishers/) and to the [MCP Registry](https://registry.modelcontextprotocol.io) via GitHub OIDC — no tokens stored in the repo.
+Releases are published to [npm](https://www.npmjs.com/package/@ffmpeg-micro/mcp-server) via [trusted publishing](https://docs.npmjs.com/trusted-publishers/) and to the [MCP Registry](https://registry.modelcontextprotocol.io) as `com.ffmpeg-micro/mcp-server`, authenticated via an Ed25519 DNS TXT record on `ffmpeg-micro.com`. The corresponding private key lives in the `MCP_PRIVATE_KEY` GitHub Actions secret. The npm side still uses OIDC trusted publishing, so no npm token is stored.
 
 ### Cutting a release
 
@@ -196,7 +196,7 @@ The push triggers `.github/workflows/release.yml`, which on the `vX.Y.Z` tag:
 1. Runs `npm run typecheck`, `npm run build`, `npm test`.
 2. Runs the **version-sync guard** — fails the build if `package.json.version`, `server.json.version`, or `server.json.packages[0].version` have drifted.
 3. `npm publish` with provenance attestation (trusted publishing via OIDC — no npm token).
-4. Installs `mcp-publisher`, authenticates with `mcp-publisher login github-oidc` (reuses the workflow's `id-token`), then runs `mcp-publisher publish` to register the new version in the MCP Registry as `io.github.javidjamae/ffmpeg-micro-mcp`.
+4. Installs `mcp-publisher`, authenticates with `mcp-publisher login dns --domain ffmpeg-micro.com --private-key $MCP_PRIVATE_KEY`, then runs `mcp-publisher publish` to register the new version in the MCP Registry as `com.ffmpeg-micro/mcp-server`.
 
 ### Verify
 
@@ -204,7 +204,7 @@ After the workflow is green:
 
 ```bash
 npm view @ffmpeg-micro/mcp-server version
-curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.javidjamae/ffmpeg-micro-mcp" | jq '.servers[0].server | {name, version}'
+curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=com.ffmpeg-micro/mcp-server" | jq '.servers[] | {v: .server.version, isLatest: ._meta."io.modelcontextprotocol.registry/official".isLatest}'
 ```
 
 ### Rules
@@ -225,7 +225,8 @@ curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.ja
 - **`npm version` fails with "working tree not clean"** — commit or stash local changes first.
 - **CI fails at the version-sync guard step** — `server.json` was edited manually. Locally: `node scripts/sync-server-version.mjs`, commit, delete the bad tag (`git tag -d vX.Y.Z && git push --delete origin vX.Y.Z`), re-tag, re-push.
 - **`mcp-publisher publish` fails with "package not found"** — npm hasn't finished propagating the new version yet. Re-run just the failed job after ~30 seconds.
-- **`mcp-publisher publish` fails validation with "mcpName mismatch"** — `package.json` `mcpName` must equal `server.json` `name` (both should be `io.github.javidjamae/ffmpeg-micro-mcp`).
+- **`mcp-publisher publish` fails validation with "mcpName mismatch"** — `package.json` `mcpName` must equal `server.json` `name` (both should be `com.ffmpeg-micro/mcp-server`).
+- **`mcp-publisher login dns` fails with "public key mismatch"** — the `MCP_PRIVATE_KEY` secret no longer matches the TXT record on `ffmpeg-micro.com`. Regenerate the keypair locally, update both the TXT record and the GitHub secret.
 
 ## License
 
