@@ -209,23 +209,53 @@ npm view @ffmpeg-micro/mcp-server version
 curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=com.ffmpeg-micro/mcp-server" | jq '.servers[] | {v: .server.version, isLatest: ._meta."io.modelcontextprotocol.registry/official".isLatest}'
 ```
 
+### Example: contributor walkthrough
+
+Suppose you're adding a new `delete_transcode` tool. Your PR flow:
+
+```bash
+git switch -c feat/delete-transcode
+# ... make the code + test changes ...
+
+npx changeset
+# ? Which packages would you like to include? › @ffmpeg-micro/mcp-server
+# ? Which type of change is this for @ffmpeg-micro/mcp-server? › minor
+# ? Please enter a summary for this change › Add delete_transcode tool
+
+git add .changeset/*.md src/ tests/
+git commit -m "feat: add delete_transcode tool"
+git push -u origin feat/delete-transcode
+gh pr create
+```
+
+CI runs three checks:
+- `test` — unit tests
+- `check` (Require changeset) — confirms `.changeset/*.md` is present
+- `Vercel` — preview deploy
+
+After merge, the Version Packages PR either opens or updates itself to include your entry. Merge that when you're ready to ship.
+
 ### Rules
 
-- **Never edit version fields in `server.json` by hand** — the sync script owns them. The CI drift guard will fail the release if they diverge from `package.json`.
-- **Never hand-edit `package.json` version and commit** — always go through `npm version` so `server.json` stays in sync and the tag is created atomically.
-- **Never tag without `npm version`** — the workflow assumes `vX.Y.Z` matches `package.json`.
+- **Never edit version fields in `server.json` or `package.json` by hand.** Changesets owns both — `scripts/sync-server-version.mjs` mirrors `package.json` into `server.json`. The CI drift guard fails the release if they diverge.
+- **Never `git tag` a release manually.** `changesets/action` creates the tag + GitHub Release as part of publish. Manual tags aren't picked up by the new workflow.
+- **Never bypass the Require-changeset check** by committing changes to `.changeset/config.json` or `.changeset/README.md` (those don't count). Use `npx changeset`, the `no-changeset` label, or `npx changeset --empty`.
 
 ### Release-related files
 
-- `package.json` — source of truth for version. Also holds `mcpName` (required by the MCP Registry for npm package validation).
+- `package.json` — source of truth for version. Also holds `mcpName` (required by the MCP Registry for npm package validation). Bumped by `changeset version`.
 - `server.json` — MCP Registry metadata. Version fields are auto-synced from `package.json`.
-- `scripts/sync-server-version.mjs` — runs during the `npm version` lifecycle.
-- `.github/workflows/release.yml` — the publish pipeline.
+- `.changeset/config.json` — Changesets configuration (public access, GitHub-aware changelog formatter).
+- `.changeset/*.md` — pending release notes waiting to be consumed by the next `changeset version` run.
+- `scripts/sync-server-version.mjs` — mirrors `package.json` version into `server.json`.
+- `.github/workflows/release.yml` — the publish pipeline (changesets/action + MCP Registry step).
+- `.github/workflows/require-changeset.yml` — enforces changeset presence on PRs.
 
 ### Troubleshooting
 
-- **`npm version` fails with "working tree not clean"** — commit or stash local changes first.
-- **CI fails at the version-sync guard step** — `server.json` was edited manually. Locally: `node scripts/sync-server-version.mjs`, commit, delete the bad tag (`git tag -d vX.Y.Z && git push --delete origin vX.Y.Z`), re-tag, re-push.
+- **`Require changeset` check fails on my PR** — run `npx changeset` and commit the generated file. For docs-only / CI-only PRs, add the `no-changeset` label or `npx changeset --empty`.
+- **CI fails at the version-sync guard step** — `server.json` was edited manually. Locally: `node scripts/sync-server-version.mjs`, commit, push. The guard compares `package.json.version`, `server.json.version`, and `server.json.packages[0].version`.
+- **`changesets/action` didn't open a Version Packages PR after my feature PR merged** — check that your PR's `.changeset/*.md` file actually had content (non-empty front matter with a bump type and summary). Empty changesets signal "no release needed" and are intentionally ignored.
 - **`mcp-publisher publish` fails with "package not found"** — npm hasn't finished propagating the new version yet. Re-run just the failed job after ~30 seconds.
 - **`mcp-publisher publish` fails validation with "mcpName mismatch"** — `package.json` `mcpName` must equal `server.json` `name` (both should be `com.ffmpeg-micro/mcp-server`).
 - **`mcp-publisher login dns` fails with "public key mismatch"** — the `MCP_PRIVATE_KEY` secret no longer matches the TXT record on `ffmpeg-micro.com`. Regenerate the keypair locally, update both the TXT record and the GitHub secret.
