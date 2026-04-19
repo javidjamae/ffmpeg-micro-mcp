@@ -59,5 +59,11 @@ jobs:
           fi
 
           echo "Found changeset file(s):"
-          [ -n "$ADDED" ] && echo "  added:"     && echo "$ADDED"     | sed 's/^/    /'
-          [ -n "$MODIFIED" ] && echo "  modified:" && echo "$MODIFIED" | sed 's/^/    /'
+          if [ -n "$ADDED" ]; then
+            echo "  added:"
+            echo "$ADDED" | sed 's/^/    /'
+          fi
+          if [ -n "$MODIFIED" ]; then
+            echo "  modified:"
+            echo "$MODIFIED" | sed 's/^/    /'
+          fi
