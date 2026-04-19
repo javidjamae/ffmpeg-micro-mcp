@@ -7,6 +7,9 @@ import { registerListTranscodes } from "../src/tools/listTranscodes.js";
 import { registerCancelTranscode } from "../src/tools/cancelTranscode.js";
 import { registerGetDownloadUrl } from "../src/tools/getDownloadUrl.js";
 import { registerTranscodeAndWait } from "../src/tools/transcodeAndWait.js";
+import { registerTranscribeAudio } from "../src/tools/transcribeAudio.js";
+import { registerGetTranscribe } from "../src/tools/getTranscribe.js";
+import { registerGetTranscribeDownload } from "../src/tools/getTranscribeDownload.js";
 
 /**
  * These tests call the tool registration functions and then invoke the tool
@@ -241,5 +244,112 @@ describe("transcode_and_wait tool", () => {
       globalThis.setTimeout = origSetTimeout;
       Date.now = realNow;
     }
+  });
+});
+
+describe("transcribe_audio tool", () => {
+  it("creates a transcribe job and returns it as JSON", async () => {
+    const fetchMock = vi.fn(async (url: string | URL, init: RequestInit = {}) => {
+      const urlStr = typeof url === "string" ? url : url.toString();
+      expect(urlStr.endsWith("/v1/transcribe")).toBe(true);
+      expect(init.method).toBe("POST");
+      const body = JSON.parse(String(init.body));
+      expect(body.media_url).toBe("gs://b/speech.mp3");
+      return new Response(
+        JSON.stringify({ id: "tr-1", status: "queued", output_format: "srt" }),
+        { status: 201 },
+      );
+    }) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerTranscribeAudio(server, makeClient(fetchMock));
+    const result = await tools.get("transcribe_audio")!.callback({
+      media_url: "gs://b/speech.mp3",
+    });
+    expect(result.isError).toBeFalsy();
+    expect(parseResult(result)).toEqual({ id: "tr-1", status: "queued", output_format: "srt" });
+  });
+
+  it("forwards optional language and task", async () => {
+    const fetchMock = vi.fn(async (_url: string | URL, init: RequestInit = {}) => {
+      const body = JSON.parse(String(init.body));
+      expect(body).toEqual({
+        media_url: "gs://b/speech.mp3",
+        language: "en",
+        task: "translate",
+      });
+      return new Response(JSON.stringify({ id: "tr-2", status: "queued" }), { status: 201 });
+    }) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerTranscribeAudio(server, makeClient(fetchMock));
+    await tools.get("transcribe_audio")!.callback({
+      media_url: "gs://b/speech.mp3",
+      language: "en",
+      task: "translate",
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("returns an error result when the API errors", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ error: "bad_media" }), {
+        status: 400,
+        statusText: "Bad Request",
+      }),
+    ) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerTranscribeAudio(server, makeClient(fetchMock));
+    const result = await tools.get("transcribe_audio")!.callback({
+      media_url: "gs://bad",
+    });
+    expect(result.isError).toBe(true);
+    expect(parseResult(result).status).toBe(400);
+  });
+});
+
+describe("get_transcribe tool", () => {
+  it("fetches a transcribe job by id", async () => {
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      expect((typeof url === "string" ? url : url.toString()).endsWith("/v1/transcribe/tr-1")).toBe(true);
+      return new Response(
+        JSON.stringify({ id: "tr-1", status: "completed", output_url: "gs://out/tr-1.srt" }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerGetTranscribe(server, makeClient(fetchMock));
+    const result = await tools.get("get_transcribe")!.callback({ id: "tr-1" });
+    const body = parseResult(result);
+    expect(body.status).toBe("completed");
+    expect(body.output_url).toBe("gs://out/tr-1.srt");
+  });
+});
+
+describe("get_transcribe_download tool", () => {
+  it("returns a signed URL for a completed transcribe job", async () => {
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      expect((typeof url === "string" ? url : url.toString()).endsWith("/v1/transcribe/tr-1/download")).toBe(true);
+      return new Response(
+        JSON.stringify({ url: "https://signed.example.com/tr-1.srt" }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerGetTranscribeDownload(server, makeClient(fetchMock));
+    const result = await tools.get("get_transcribe_download")!.callback({ id: "tr-1" });
+    expect(parseResult(result)).toEqual({ url: "https://signed.example.com/tr-1.srt" });
+  });
+
+  it("propagates 400 when the job is not completed", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ error: "Transcribe not completed" }), {
+        status: 400,
+        statusText: "Bad Request",
+      }),
+    ) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerGetTranscribeDownload(server, makeClient(fetchMock));
+    const result = await tools.get("get_transcribe_download")!.callback({ id: "tr-1" });
+    expect(result.isError).toBe(true);
+    expect(parseResult(result).status).toBe(400);
   });
 });

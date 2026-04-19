@@ -61,3 +61,24 @@ export interface CancelTranscodeResponse {
 export interface DownloadUrlResponse {
   url: string;
 }
+
+export type TranscribeTask = "transcribe" | "translate";
+
+export interface CreateTranscribeRequest {
+  media_url: string;
+  language?: string;
+  task?: TranscribeTask;
+}
+
+export interface Transcribe {
+  id: string;
+  status: TranscodeStatus;
+  media_url?: string;
+  output_format?: "srt";
+  output_url?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  completed_at?: string | null;
+  // Passthrough for everything the server returns.
+  [key: string]: unknown;
+}

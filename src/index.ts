@@ -8,6 +8,9 @@ import { registerListTranscodes } from "./tools/listTranscodes.js";
 import { registerCancelTranscode } from "./tools/cancelTranscode.js";
 import { registerGetDownloadUrl } from "./tools/getDownloadUrl.js";
 import { registerTranscodeAndWait } from "./tools/transcodeAndWait.js";
+import { registerTranscribeAudio } from "./tools/transcribeAudio.js";
+import { registerGetTranscribe } from "./tools/getTranscribe.js";
+import { registerGetTranscribeDownload } from "./tools/getTranscribeDownload.js";
 
 // Loaded from the generated package.json at build time via tsc. This matches
 // the published version so MCP clients can report the server version.
@@ -47,6 +50,9 @@ function createServer(): McpServer {
   registerCancelTranscode(server, client);
   registerGetDownloadUrl(server, client);
   registerTranscodeAndWait(server, client);
+  registerTranscribeAudio(server, client);
+  registerGetTranscribe(server, client);
+  registerGetTranscribeDownload(server, client);
 
   return server;
 }
