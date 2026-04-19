@@ -1,19 +1,44 @@
 name: Release
 
+# Release is driven by Changesets instead of manual tagging. The flow:
+#
+#   1. Contributor PRs land on main with a `.changeset/*.md` file describing
+#      the bump (major/minor/patch + summary).
+#   2. This workflow runs on every push to main. If pending changesets exist,
+#      changesets/action opens (or updates) a "Version Packages" PR that bumps
+#      package.json, re-syncs server.json via scripts/sync-server-version.mjs,
+#      and appends the changelog entries.
+#   3. Merging that PR drops the version bump onto main. This workflow runs
+#      again, sees no pending changesets, and publishes: npm + MCP Registry.
+#
+# No `git tag` step is needed — changesets/action creates the tag during
+# publish. The old tag-triggered flow (and manual `npm version` dance) is gone.
+
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 permissions:
-  id-token: write  # Required for OIDC / npm trusted publishing
-  contents: read
+  # changesets/action needs these to open the Version Packages PR and push
+  # the version-bump commit to its branch.
+  contents: write
+  pull-requests: write
+  # Required for npm OIDC trusted publishing.
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Full history lets changesets compute the correct changelog range.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v6
         with:
@@ -28,6 +53,9 @@ jobs:
 
       - run: npm test
 
+      # Defence-in-depth: fail loudly if package.json and server.json have drifted
+      # apart for any reason. The ci:version script keeps them in sync, but this
+      # catches manual edits that missed the sync.
       - name: Check server.json version matches package.json
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
@@ -38,16 +66,35 @@ jobs:
             exit 1
           fi
 
-      - run: npm publish
+      - name: Changesets — open Version PR or publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          # ci:version runs `changeset version` then mirrors the new version
+          # into server.json via scripts/sync-server-version.mjs.
+          version: npm run ci:version
+          # ci:publish runs `npm publish` (OIDC trusted publishing). The MCP
+          # Registry publish is a separate step below so the DNS private key
+          # stays visible in workflow config.
+          publish: npm run ci:publish
+          title: 'chore(release): version packages'
+          commit: 'chore(release): version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Only runs when changesets/action actually published a new version
+      # to npm (i.e. we just merged the Version Packages PR).
       - name: Install mcp-publisher
+        if: steps.changesets.outputs.published == 'true'
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
 
       - name: Login to MCP Registry via DNS
+        if: steps.changesets.outputs.published == 'true'
         run: ./mcp-publisher login dns --domain ffmpeg-micro.com --private-key "$MCP_PRIVATE_KEY"
         env:
           MCP_PRIVATE_KEY: ${{ secrets.MCP_PRIVATE_KEY }}
 
       - name: Publish to MCP Registry
+        if: steps.changesets.outputs.published == 'true'
         run: ./mcp-publisher publish
