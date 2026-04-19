@@ -1,10 +1,12 @@
 import type {
   CancelTranscodeResponse,
   CreateTranscodeRequest,
+  CreateTranscribeRequest,
   DownloadUrlResponse,
   ListTranscodesResponse,
   Transcode,
   TranscodeStatus,
+  Transcribe,
 } from "./types.js";
 
 const DEFAULT_BASE_URL = "https://api.ffmpeg-micro.com";
@@ -116,6 +118,21 @@ export class FFmpegMicroClient {
     return this.request<DownloadUrlResponse>(
       "GET",
       `/v1/transcodes/${encodeURIComponent(id)}/download?url=true`,
+    );
+  }
+
+  createTranscribe(body: CreateTranscribeRequest): Promise<Transcribe> {
+    return this.request<Transcribe>("POST", "/v1/transcribe", body);
+  }
+
+  getTranscribe(id: string): Promise<Transcribe> {
+    return this.request<Transcribe>("GET", `/v1/transcribe/${encodeURIComponent(id)}`);
+  }
+
+  getTranscribeDownloadUrl(id: string): Promise<DownloadUrlResponse> {
+    return this.request<DownloadUrlResponse>(
+      "GET",
+      `/v1/transcribe/${encodeURIComponent(id)}/download`,
     );
   }
 }
