@@ -1,0 +1,69 @@
+name: Require changeset
+
+# Fails PRs that touch shipped code without a changeset file.
+#
+# Escape hatches:
+#   - Add the `no-changeset` label to skip this check entirely.
+#   - For docs/CI/test-only PRs, add an empty changeset via `npx changeset --empty`.
+#
+# This check is independent of the release workflow — it only enforces that
+# contributors declare the release impact of every PR.
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+      - unlabeled
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.pull_request.labels.*.name, 'no-changeset')"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check for a changeset
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -e
+
+          # Any new file under .changeset/ other than README.md and config.json
+          # counts as a changeset. Empty changesets (from `npx changeset --empty`)
+          # are still markdown files and are accepted — they signal "no release
+          # needed, but intentionally so."
+          ADDED=$(git diff --name-only --diff-filter=A "$BASE_SHA"...HEAD -- '.changeset/*.md' | grep -vx '.changeset/README.md' || true)
+
+          # Also accept modifications to existing changeset files in case the
+          # author edited a previously-added changeset.
+          MODIFIED=$(git diff --name-only --diff-filter=M "$BASE_SHA"...HEAD -- '.changeset/*.md' | grep -vx '.changeset/README.md' || true)
+
+          if [ -z "$ADDED" ] && [ -z "$MODIFIED" ]; then
+            echo "::error::No changeset found for this PR."
+            echo ""
+            echo "If this PR should ship in a new release:"
+            echo "  npx changeset"
+            echo "(then commit the generated .changeset/*.md file)"
+            echo ""
+            echo "If it's docs-only, a CI tweak, or otherwise not release-worthy, either:"
+            echo "  1. Add the 'no-changeset' label to this PR, or"
+            echo "  2. Add an empty changeset: npx changeset --empty"
+            exit 1
+          fi
+
+          echo "Found changeset file(s):"
+          if [ -n "$ADDED" ]; then
+            echo "  added:"
+            echo "$ADDED" | sed 's/^/    /'
+          fi
+          if [ -n "$MODIFIED" ]; then
+            echo "  modified:"
+            echo "$MODIFIED" | sed 's/^/    /'
+          fi
