@@ -82,3 +82,40 @@ export interface Transcribe {
   // Passthrough for everything the server returns.
   [key: string]: unknown;
 }
+
+export interface PresignedUploadUrlRequest {
+  filename: string;
+  contentType: string;
+  fileSize: number;
+}
+
+export interface PresignedUploadUrlResult {
+  uploadUrl: string;
+  filename: string;
+  expiresAt: string;
+}
+
+export interface PresignedUploadUrlResponse {
+  success: boolean;
+  result: PresignedUploadUrlResult;
+}
+
+export interface ConfirmUploadRequest {
+  filename: string;
+  fileSize: number;
+  uploadId?: string;
+}
+
+export interface ConfirmUploadResult {
+  fileUrl: string;
+  downloadUrl?: string;
+  filename: string;
+  fileSize: number;
+  uploadedAt: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ConfirmUploadResponse {
+  success: boolean;
+  result: ConfirmUploadResult;
+}

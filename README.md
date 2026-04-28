@@ -8,7 +8,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that lets AI 
 
 ## What it does
 
-Exposes six tools that map onto FFmpeg Micro's public API:
+Exposes tools that map onto FFmpeg Micro's public API:
 
 | Tool | What it does |
 | --- | --- |
@@ -18,6 +18,17 @@ Exposes six tools that map onto FFmpeg Micro's public API:
 | `cancel_transcode` | Cancel a queued or processing job. |
 | `get_download_url` | Generate a 10-minute signed HTTPS URL for a completed job's output file. |
 | `transcode_and_wait` | Convenience: create a job, poll until it finishes, return the signed download URL in one call. |
+| `request_upload_url` | Step 1 of the direct-upload flow. Returns a presigned HTTPS URL that the host PUTs the file bytes to. |
+| `confirm_upload` | Step 2 of the direct-upload flow. Returns the final `gs://` URL plus probe metadata, ready to use as a transcode/transcribe input. |
+
+### Uploading a local file
+
+The `request_upload_url` + `confirm_upload` pair lets an MCP host upload a local file to the FFmpeg Micro storage bucket without dealing with raw API keys or `gs://` URLs:
+
+1. Host calls `request_upload_url` with `{filename, contentType, fileSize}` → receives a short-lived presigned HTTPS URL.
+2. Host PUTs the file bytes to that URL with the same `Content-Type`.
+3. Host calls `confirm_upload` with `{filename: <storage filename from step 1>, fileSize}` → receives the final `gs://...` `fileUrl`.
+4. Host passes that `fileUrl` to `transcribe_audio` / `transcode_video` / `transcode_and_wait`.
 
 ## Quick start
 

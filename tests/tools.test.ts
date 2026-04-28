@@ -10,6 +10,8 @@ import { registerTranscodeAndWait } from "../src/tools/transcodeAndWait.js";
 import { registerTranscribeAudio } from "../src/tools/transcribeAudio.js";
 import { registerGetTranscribe } from "../src/tools/getTranscribe.js";
 import { registerGetTranscribeDownload } from "../src/tools/getTranscribeDownload.js";
+import { registerRequestUploadUrl } from "../src/tools/requestUploadUrl.js";
+import { registerConfirmUpload } from "../src/tools/confirmUpload.js";
 
 /**
  * These tests call the tool registration functions and then invoke the tool
@@ -349,6 +351,155 @@ describe("get_transcribe_download tool", () => {
     const { server, tools } = capturingServer();
     registerGetTranscribeDownload(server, makeClient(fetchMock));
     const result = await tools.get("get_transcribe_download")!.callback({ id: "tr-1" });
+    expect(result.isError).toBe(true);
+    expect(parseResult(result).status).toBe(400);
+  });
+});
+
+describe("request_upload_url tool", () => {
+  it("POSTs to /v1/upload/presigned-url and returns the envelope", async () => {
+    const fetchMock = vi.fn(async (url: string | URL, init: RequestInit = {}) => {
+      const urlStr = typeof url === "string" ? url : url.toString();
+      expect(urlStr.endsWith("/v1/upload/presigned-url")).toBe(true);
+      expect(init.method).toBe("POST");
+      const body = JSON.parse(String(init.body));
+      expect(body).toEqual({
+        filename: "audio.m4a",
+        contentType: "audio/mp4",
+        fileSize: 12345,
+      });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          result: {
+            uploadUrl: "https://storage.googleapis.com/signed",
+            filename: "1234-audio.m4a",
+            expiresAt: "2026-04-28T20:00:00.000Z",
+          },
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerRequestUploadUrl(server, makeClient(fetchMock));
+    const result = await tools.get("request_upload_url")!.callback({
+      filename: "audio.m4a",
+      contentType: "audio/mp4",
+      fileSize: 12345,
+    });
+    expect(result.isError).toBeFalsy();
+    const body = parseResult(result);
+    expect(body.success).toBe(true);
+    expect(body.result.uploadUrl).toBe("https://storage.googleapis.com/signed");
+    expect(body.result.filename).toBe("1234-audio.m4a");
+  });
+
+  it("rejects non-positive fileSize via zod", async () => {
+    const fetchMock = vi.fn() as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerRequestUploadUrl(server, makeClient(fetchMock));
+    const result = await tools.get("request_upload_url")!.callback({
+      filename: "audio.m4a",
+      contentType: "audio/mp4",
+      fileSize: 0,
+    });
+    expect(result.isError).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns an error result when the API rejects the file type", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ error: "Invalid file type." }), {
+        status: 400,
+        statusText: "Bad Request",
+      }),
+    ) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerRequestUploadUrl(server, makeClient(fetchMock));
+    const result = await tools.get("request_upload_url")!.callback({
+      filename: "x.exe",
+      contentType: "application/x-msdownload",
+      fileSize: 100,
+    });
+    expect(result.isError).toBe(true);
+    expect(parseResult(result).status).toBe(400);
+  });
+});
+
+describe("confirm_upload tool", () => {
+  it("POSTs to /v1/upload/confirm and returns the gs:// fileUrl", async () => {
+    const fetchMock = vi.fn(async (url: string | URL, init: RequestInit = {}) => {
+      const urlStr = typeof url === "string" ? url : url.toString();
+      expect(urlStr.endsWith("/v1/upload/confirm")).toBe(true);
+      expect(init.method).toBe("POST");
+      const body = JSON.parse(String(init.body));
+      expect(body).toEqual({ filename: "1234-audio.m4a", fileSize: 12345 });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          result: {
+            fileUrl: "gs://bucket/1234-audio.m4a",
+            filename: "1234-audio.m4a",
+            fileSize: 12345,
+            uploadedAt: "2026-04-28T20:00:00.000Z",
+            metadata: { duration_seconds: 70 },
+          },
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerConfirmUpload(server, makeClient(fetchMock));
+    const result = await tools.get("confirm_upload")!.callback({
+      filename: "1234-audio.m4a",
+      fileSize: 12345,
+    });
+    const body = parseResult(result);
+    expect(body.success).toBe(true);
+    expect(body.result.fileUrl).toBe("gs://bucket/1234-audio.m4a");
+    expect(body.result.metadata.duration_seconds).toBe(70);
+  });
+
+  it("forwards optional uploadId", async () => {
+    const fetchMock = vi.fn(async (_url: string | URL, init: RequestInit = {}) => {
+      const body = JSON.parse(String(init.body));
+      expect(body.uploadId).toBe("up-42");
+      return new Response(
+        JSON.stringify({
+          success: true,
+          result: {
+            fileUrl: "gs://bucket/x",
+            filename: "x",
+            fileSize: 1,
+            uploadedAt: "2026-04-28T20:00:00.000Z",
+          },
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerConfirmUpload(server, makeClient(fetchMock));
+    await tools.get("confirm_upload")!.callback({
+      filename: "x",
+      fileSize: 1,
+      uploadId: "up-42",
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("returns an error result when the gateway reports a size mismatch", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ error: "File size mismatch" }), {
+        status: 400,
+        statusText: "Bad Request",
+      }),
+    ) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerConfirmUpload(server, makeClient(fetchMock));
+    const result = await tools.get("confirm_upload")!.callback({
+      filename: "x",
+      fileSize: 1,
+    });
     expect(result.isError).toBe(true);
     expect(parseResult(result).status).toBe(400);
   });

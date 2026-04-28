@@ -1,9 +1,13 @@
 import type {
   CancelTranscodeResponse,
+  ConfirmUploadRequest,
+  ConfirmUploadResponse,
   CreateTranscodeRequest,
   CreateTranscribeRequest,
   DownloadUrlResponse,
   ListTranscodesResponse,
+  PresignedUploadUrlRequest,
+  PresignedUploadUrlResponse,
   Transcode,
   TranscodeStatus,
   Transcribe,
@@ -134,5 +138,13 @@ export class FFmpegMicroClient {
       "GET",
       `/v1/transcribe/${encodeURIComponent(id)}/download`,
     );
+  }
+
+  getPresignedUploadUrl(body: PresignedUploadUrlRequest): Promise<PresignedUploadUrlResponse> {
+    return this.request<PresignedUploadUrlResponse>("POST", "/v1/upload/presigned-url", body);
+  }
+
+  confirmUpload(body: ConfirmUploadRequest): Promise<ConfirmUploadResponse> {
+    return this.request<ConfirmUploadResponse>("POST", "/v1/upload/confirm", body);
   }
 }

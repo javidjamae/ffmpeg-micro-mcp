@@ -11,6 +11,8 @@ import { registerTranscodeAndWait } from "./tools/transcodeAndWait.js";
 import { registerTranscribeAudio } from "./tools/transcribeAudio.js";
 import { registerGetTranscribe } from "./tools/getTranscribe.js";
 import { registerGetTranscribeDownload } from "./tools/getTranscribeDownload.js";
+import { registerRequestUploadUrl } from "./tools/requestUploadUrl.js";
+import { registerConfirmUpload } from "./tools/confirmUpload.js";
 
 const SERVER_NAME = "ffmpeg-micro-mcp";
 const SERVER_VERSION = "0.1.0";
@@ -31,6 +33,8 @@ function createMcpServer(apiKey: string): McpServer {
   registerTranscribeAudio(server, client);
   registerGetTranscribe(server, client);
   registerGetTranscribeDownload(server, client);
+  registerRequestUploadUrl(server, client);
+  registerConfirmUpload(server, client);
 
   return server;
 }
