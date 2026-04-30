@@ -1,6 +1,6 @@
 {
   "name": "@ffmpeg-micro/mcp-server",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "mcpName": "com.ffmpeg-micro/mcp-server",
   "description": "Model Context Protocol server for the FFmpeg Micro video transcoding API. Lets AI agents (Claude Desktop, Cursor, etc.) create, monitor, and download transcodes through tool calls.",
   "type": "module",
