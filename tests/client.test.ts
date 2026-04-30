@@ -123,4 +123,87 @@ describe("FFmpegMicroClient", () => {
     const result = await client.getDownloadUrl("abc");
     expect(result.url).toBe("https://signed.example/abc");
   });
+
+  it("getPresignedUploadUrl POSTs filename + contentType + fileSize", async () => {
+    const fetchMock = mockFetch((url, init) => {
+      expect(url).toBe("https://api.ffmpeg-micro.com/v1/upload/presigned-url");
+      expect(init.method).toBe("POST");
+      const body = JSON.parse(String(init.body));
+      expect(body).toEqual({
+        filename: "audio.m4a",
+        contentType: "audio/mp4",
+        fileSize: 12345,
+      });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          result: {
+            uploadUrl: "https://storage.googleapis.com/signed",
+            filename: "1234-audio.m4a",
+            expiresAt: "2026-04-28T20:00:00.000Z",
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    const client = new FFmpegMicroClient({ apiKey: "k", fetch: fetchMock });
+    const res = await client.getPresignedUploadUrl({
+      filename: "audio.m4a",
+      contentType: "audio/mp4",
+      fileSize: 12345,
+    });
+    expect(res.success).toBe(true);
+    expect(res.result.uploadUrl).toBe("https://storage.googleapis.com/signed");
+    expect(res.result.filename).toBe("1234-audio.m4a");
+  });
+
+  it("confirmUpload POSTs filename + fileSize and returns gs:// fileUrl", async () => {
+    const fetchMock = mockFetch((url, init) => {
+      expect(url).toBe("https://api.ffmpeg-micro.com/v1/upload/confirm");
+      expect(init.method).toBe("POST");
+      const body = JSON.parse(String(init.body));
+      expect(body).toEqual({ filename: "1234-audio.m4a", fileSize: 12345 });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          result: {
+            fileUrl: "gs://bucket/1234-audio.m4a",
+            filename: "1234-audio.m4a",
+            fileSize: 12345,
+            uploadedAt: "2026-04-28T20:00:00.000Z",
+            metadata: { duration_seconds: 10 },
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    const client = new FFmpegMicroClient({ apiKey: "k", fetch: fetchMock });
+    const res = await client.confirmUpload({
+      filename: "1234-audio.m4a",
+      fileSize: 12345,
+    });
+    expect(res.result.fileUrl).toBe("gs://bucket/1234-audio.m4a");
+    expect(res.result.metadata?.duration_seconds).toBe(10);
+  });
+
+  it("confirmUpload forwards optional uploadId", async () => {
+    const fetchMock = mockFetch((_url, init) => {
+      const body = JSON.parse(String(init.body));
+      expect(body.uploadId).toBe("up-42");
+      return new Response(
+        JSON.stringify({
+          success: true,
+          result: {
+            fileUrl: "gs://bucket/x",
+            filename: "x",
+            fileSize: 1,
+            uploadedAt: "2026-04-28T20:00:00.000Z",
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    const client = new FFmpegMicroClient({ apiKey: "k", fetch: fetchMock });
+    await client.confirmUpload({ filename: "x", fileSize: 1, uploadId: "up-42" });
+  });
 });
