@@ -168,6 +168,35 @@ FFMPEG_MICRO_API_KEY=your_key npm run test:integration
 
 Integration tests hit the real FFmpeg Micro production API. They are read-only (no jobs are created).
 
+### Smoke-testing the upload tools end-to-end
+
+Unit tests use a mocked `fetch`, so they prove tool registration + Zod schemas + URL paths but not that the wire shapes match what the gateway actually returns. Two smoke scripts exercise the full `request_upload_url` → PUT → `confirm_upload` flow against a real MCP server using a real API key. Run them in order — stdio first (fastest signal), then a deployed HTTP server before/after merge:
+
+```bash
+# 1. stdio (local dist build) — spawns dist/index.js as a subprocess
+npm run build
+FFMPEG_MICRO_API_KEY=your_key node scripts/smoke-upload-stdio.mjs <local-file>
+
+# 2. HTTP (any deployed server — local `npm run serve`, Vercel preview, or prod)
+FFMPEG_MICRO_API_KEY=your_key MCP_URL=https://mcp.ffmpeg-micro.com/ \
+  node scripts/smoke-upload-http.mjs <local-file>
+```
+
+Both scripts hit the production API by default and consume billable minutes (the stdio script chains into `transcribe_audio` for an end-to-end check). Pass a small file like `15-second.mp3` to keep the cost negligible.
+
+#### Hitting protection-protected Vercel previews
+
+Vercel preview deployments are gated by Deployment Protection by default. To exercise the HTTP smoke script against a preview URL, generate a Protection-Bypass-for-Automation token in the project's Vercel settings and pass it via `VERCEL_BYPASS`:
+
+```bash
+FFMPEG_MICRO_API_KEY=your_key \
+  MCP_URL=https://your-preview.vercel.app/ \
+  VERCEL_BYPASS=your_bypass_token \
+  node scripts/smoke-upload-http.mjs <local-file>
+```
+
+The script sends the token as the `x-vercel-protection-bypass` header on every request. **It does not** send `x-vercel-set-bypass-cookie: true` — that variant triggers a 307 cookie-setting redirect on POST that the MCP SDK's `StreamableHTTPClientTransport` does not follow, so the request fails. The header alone returns 200 directly without the redirect dance.
+
 ## Release process
 
 Releases are published to [npm](https://www.npmjs.com/package/@ffmpeg-micro/mcp-server) via [trusted publishing](https://docs.npmjs.com/trusted-publishers/) and to the [MCP Registry](https://registry.modelcontextprotocol.io) as `com.ffmpeg-micro/mcp-server`, authenticated via an Ed25519 DNS TXT record on `ffmpeg-micro.com`. The corresponding private key lives in the `MCP_PRIVATE_KEY` GitHub Actions secret. The npm side uses OIDC trusted publishing, so no npm token is stored.
