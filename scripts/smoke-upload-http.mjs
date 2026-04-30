@@ -43,10 +43,17 @@ const contentType = filename.endsWith(".m4a")
 console.log(`▸ MCP_URL=${process.env.MCP_URL}`);
 console.log(`▸ file=${filePath} size=${fileSize} contentType=${contentType}`);
 
+const headers = { Authorization: `Bearer ${process.env.FFMPEG_MICRO_API_KEY}` };
+// Optional Vercel deployment-protection bypass (for testing protected previews).
+// Get one from project Settings > Deployment Protection > Protection Bypass for
+// Automation. Send the header but NOT `x-vercel-set-bypass-cookie: true`, since
+// the latter triggers a 307 cookie-setting redirect that the MCP SDK transport
+// cannot follow.
+if (process.env.VERCEL_BYPASS) {
+  headers["x-vercel-protection-bypass"] = process.env.VERCEL_BYPASS;
+}
 const transport = new StreamableHTTPClientTransport(new URL(process.env.MCP_URL), {
-  requestInit: {
-    headers: { Authorization: `Bearer ${process.env.FFMPEG_MICRO_API_KEY}` },
-  },
+  requestInit: { headers },
 });
 const client = new Client({ name: "smoke-upload-http", version: "0.0.0" });
 await client.connect(transport);
