@@ -11,6 +11,13 @@ name: Release
 #   3. Merging that PR drops the version bump onto main. This workflow runs
 #      again, sees no pending changesets, and publishes: npm + MCP Registry.
 #
+# The MCP Registry publish is gated by a self-healing version-comparison step
+# (`Determine if MCP Registry publish is needed`) rather than by
+# changesets/action's `published` flag, which was observed to stay false even
+# when npm publish had succeeded. The new gate fires whenever npm has the
+# current package.json version and the MCP Registry doesn't — so a missed
+# publish self-heals on the next push to main.
+#
 # No `git tag` step is needed — changesets/action creates the tag during
 # publish. The old tag-triggered flow (and manual `npm version` dance) is gone.
 
@@ -82,19 +89,72 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Only runs when changesets/action actually published a new version
-      # to npm (i.e. we just merged the Version Packages PR).
+      # Self-healing gate for the MCP Registry publish. Comparing three
+      # sources of truth (package.json, npm, MCP Registry) is more reliable
+      # than `steps.changesets.outputs.published`, which was observed to stay
+      # false during the 0.3.0 release even though npm publish succeeded
+      # inside changesets/action — silently skipping the registry publish.
+      #
+      # Sets `needed=true` only when npm already has the current package.json
+      # version AND the MCP Registry is behind. Side effects:
+      #   - Happy path: changesets/action publishes to npm above, this sees
+      #     the drift, registry publish catches up.
+      #   - Drift recovery: if a previous run failed to publish to the
+      #     registry, the next push to main re-runs this check and catches up.
+      #   - npm-not-yet-propagated: if `npm view` doesn't yet show the new
+      #     version, this step backs off (rather than racing the registry
+      #     publish into "package not found"). The next push catches up.
+      - name: Determine if MCP Registry publish is needed
+        id: registry_check
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          MCP_NAME=$(node -p "require('./package.json').mcpName")
+
+          # Retry `npm view` a few times — OIDC publish above can take several
+          # seconds to propagate to npm's read APIs.
+          NPM_VERSION=""
+          for i in 1 2 3 4 5; do
+            NPM_VERSION=$(npm view "$PKG_NAME" version 2>/dev/null || echo "")
+            if [ "$PKG_VERSION" = "$NPM_VERSION" ]; then break; fi
+            sleep 10
+          done
+
+          REGISTRY_VERSION=$(curl -sf "https://registry.modelcontextprotocol.io/v0/servers?search=$MCP_NAME" \
+            | node -e "
+              let d='';
+              process.stdin.on('data', c => d += c).on('end', () => {
+                const j = JSON.parse(d);
+                const latest = (j.servers || []).find(s =>
+                  s._meta?.['io.modelcontextprotocol.registry/official']?.isLatest
+                );
+                console.log(latest?.server?.version || '');
+              });
+            " || echo "")
+
+          echo "package.json: $PKG_VERSION"
+          echo "npm:          $NPM_VERSION"
+          echo "MCP Registry: $REGISTRY_VERSION"
+
+          if [ "$PKG_VERSION" = "$NPM_VERSION" ] && [ "$NPM_VERSION" != "$REGISTRY_VERSION" ]; then
+            echo "Registry is out of sync — will publish $PKG_VERSION."
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping MCP Registry publish (already in sync, or npm not yet propagated)."
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install mcp-publisher
-        if: steps.changesets.outputs.published == 'true'
+        if: steps.registry_check.outputs.needed == 'true'
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
 
       - name: Login to MCP Registry via DNS
-        if: steps.changesets.outputs.published == 'true'
+        if: steps.registry_check.outputs.needed == 'true'
         run: ./mcp-publisher login dns --domain ffmpeg-micro.com --private-key "$MCP_PRIVATE_KEY"
         env:
           MCP_PRIVATE_KEY: ${{ secrets.MCP_PRIVATE_KEY }}
 
       - name: Publish to MCP Registry
-        if: steps.changesets.outputs.published == 'true'
+        if: steps.registry_check.outputs.needed == 'true'
         run: ./mcp-publisher publish
