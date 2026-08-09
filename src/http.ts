@@ -13,6 +13,10 @@ import { registerGetTranscribe } from "./tools/getTranscribe.js";
 import { registerGetTranscribeDownload } from "./tools/getTranscribeDownload.js";
 import { registerRequestUploadUrl } from "./tools/requestUploadUrl.js";
 import { registerConfirmUpload } from "./tools/confirmUpload.js";
+import { registerRunBlueprint } from "./tools/runBlueprint.js";
+import { registerGetBlueprintRun } from "./tools/getBlueprintRun.js";
+import { registerRunBlueprintAndWait } from "./tools/runBlueprintAndWait.js";
+import { registerContinueBlueprintRun } from "./tools/continueBlueprintRun.js";
 
 const SERVER_NAME = "ffmpeg-micro-mcp";
 const SERVER_VERSION = "0.1.0";
@@ -35,6 +39,10 @@ function createMcpServer(apiKey: string): McpServer {
   registerGetTranscribeDownload(server, client);
   registerRequestUploadUrl(server, client);
   registerConfirmUpload(server, client);
+  registerRunBlueprint(server, client);
+  registerGetBlueprintRun(server, client);
+  registerRunBlueprintAndWait(server, client);
+  registerContinueBlueprintRun(server, client);
 
   return server;
 }
