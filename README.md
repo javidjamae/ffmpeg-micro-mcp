@@ -20,6 +20,19 @@ Exposes tools that map onto FFmpeg Micro's public API:
 | `transcode_and_wait` | Convenience: create a job, poll until it finishes, return the signed download URL in one call. |
 | `request_upload_url` | Step 1 of the direct-upload flow. Returns a presigned HTTPS URL that the host PUTs the file bytes to. |
 | `confirm_upload` | Step 2 of the direct-upload flow. Returns the final `gs://` URL plus probe metadata, ready to use as a transcode/transcribe input. |
+| `run_blueprint` | Start a blueprint run — a pre-built video workflow (captioning, resizing, watermarking, ads, and more). |
+| `get_blueprint_run` | Fetch a blueprint run's status, step, and output URLs (multi-output blueprints return labeled `outputs`). |
+| `run_blueprint_and_wait` | Convenience: start a blueprint run and poll until it completes, fails, or pauses for transcript review. |
+| `continue_blueprint_run` | Resume a `caption-video` run paused in `awaiting_review` by submitting the approved SRT transcript. |
+
+### Blueprints
+
+Blueprints are pre-built workflows behind `POST /v1/blueprints/{slug}/runs`. The tool descriptions document each blueprint's input fields. Notes:
+
+- Most blueprints run on the FFmpeg lane and meter plan compute minutes (no tokens). Generative blueprints (`product-ad`) charge tokens; a `402 insufficient_tokens` response means the account needs a token pack ([dashboard](https://www.ffmpeg-micro.com/dashboard/blueprints)).
+- `caption-video` pauses in `awaiting_review` with the transcript (`srt_text`) so the agent can review/edit before rendering; resume with `continue_blueprint_run`.
+- Multi-output blueprints (`listing-kit`, `hook-variants`) return an `outputs` array of `{label, url}` — prefer it over `output_url` when present.
+- Output URLs are signed with a 10-minute TTL; re-fetch the run for fresh links.
 
 ### Uploading a local file
 
@@ -183,6 +196,13 @@ FFMPEG_MICRO_API_KEY=your_key MCP_URL=https://mcp.ffmpeg-micro.com/ \
 ```
 
 Both scripts hit the production API by default and consume billable minutes (the stdio script chains into `transcribe_audio` for an end-to-end check). Pass a small file like `15-second.mp3` to keep the cost negligible.
+
+A third script smoke-tests the blueprint tools (`run_blueprint` + `get_blueprint_run` polled to completion on `resize-format`, then `run_blueprint_and_wait` on `hook-variants` to exercise multi-output). It uses FFmpeg-lane blueprints only, so it consumes plan compute minutes but no tokens:
+
+```bash
+npm run build
+FFMPEG_MICRO_API_KEY=your_key node scripts/smoke-blueprints-stdio.mjs
+```
 
 #### Hitting protection-protected Vercel previews
 

@@ -12,6 +12,10 @@ import { registerGetTranscribe } from "../src/tools/getTranscribe.js";
 import { registerGetTranscribeDownload } from "../src/tools/getTranscribeDownload.js";
 import { registerRequestUploadUrl } from "../src/tools/requestUploadUrl.js";
 import { registerConfirmUpload } from "../src/tools/confirmUpload.js";
+import { registerRunBlueprint } from "../src/tools/runBlueprint.js";
+import { registerGetBlueprintRun } from "../src/tools/getBlueprintRun.js";
+import { registerRunBlueprintAndWait } from "../src/tools/runBlueprintAndWait.js";
+import { registerContinueBlueprintRun } from "../src/tools/continueBlueprintRun.js";
 
 /**
  * These tests call the tool registration functions and then invoke the tool
@@ -502,5 +506,217 @@ describe("confirm_upload tool", () => {
     });
     expect(result.isError).toBe(true);
     expect(parseResult(result).status).toBe(400);
+  });
+});
+
+describe("run_blueprint tool", () => {
+  it("submits a run and returns the plain (non-envelope) body", async () => {
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const urlStr = typeof url === "string" ? url : url.toString();
+      expect(urlStr.endsWith("/v1/blueprints/resize-format/runs")).toBe(true);
+      expect(JSON.parse(init!.body as string)).toEqual({
+        video_url: "https://example.com/a.mp4",
+        format: "9x16",
+      });
+      return new Response(
+        JSON.stringify({ id: "run-1", status: "pending", blueprint: "resize-format", tokens_charged: 0 }),
+        { status: 201 },
+      );
+    }) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerRunBlueprint(server, makeClient(fetchMock));
+    const result = await tools.get("run_blueprint")!.callback({
+      slug: "resize-format",
+      inputs: { video_url: "https://example.com/a.mp4", format: "9x16" },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(parseResult(result)).toEqual({
+      id: "run-1",
+      status: "pending",
+      blueprint: "resize-format",
+      tokens_charged: 0,
+    });
+  });
+
+  it("rejects unknown slugs before hitting the API", async () => {
+    const fetchMock = vi.fn() as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerRunBlueprint(server, makeClient(fetchMock));
+    const result = await tools.get("run_blueprint")!.callback({
+      slug: "not-a-blueprint",
+      inputs: {},
+    });
+    expect(result.isError).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces 402 insufficient_tokens with a help line", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ error: "insufficient_tokens", tokens_required: 200 }), {
+        status: 402,
+        statusText: "Payment Required",
+      }),
+    ) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerRunBlueprint(server, makeClient(fetchMock));
+    const result = await tools.get("run_blueprint")!.callback({
+      slug: "product-ad",
+      inputs: { logo_url: "https://x/l.png", photo_url: "https://x/p.png" },
+    });
+    expect(result.isError).toBe(true);
+    const body = parseResult(result);
+    expect(body.status).toBe(402);
+    expect(body.error).toBe("insufficient_tokens");
+    expect(body.tokens_required).toBe(200);
+    expect(body.help).toContain("dashboard/blueprints");
+  });
+
+  it("surfaces 429 too_many_active_runs with a help line", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ error: "too_many_active_runs", max_active_runs: 2 }), {
+        status: 429,
+        statusText: "Too Many Requests",
+      }),
+    ) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerRunBlueprint(server, makeClient(fetchMock));
+    const result = await tools.get("run_blueprint")!.callback({
+      slug: "product-ad",
+      inputs: { logo_url: "https://x/l.png", photo_url: "https://x/p.png" },
+    });
+    expect(result.isError).toBe(true);
+    const body = parseResult(result);
+    expect(body.max_active_runs).toBe(2);
+    expect(body.help).toContain("Wait for an active run");
+  });
+
+  it("surfaces 503 generative_temporarily_unavailable with a help line", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ error: "generative_temporarily_unavailable", retry_after_minutes: 15 }),
+        { status: 503, statusText: "Service Unavailable" },
+      ),
+    ) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerRunBlueprint(server, makeClient(fetchMock));
+    const result = await tools.get("run_blueprint")!.callback({
+      slug: "product-ad",
+      inputs: { logo_url: "https://x/l.png", photo_url: "https://x/p.png" },
+    });
+    expect(result.isError).toBe(true);
+    expect(parseResult(result).help).toContain("15");
+  });
+});
+
+describe("get_blueprint_run tool", () => {
+  it("fetches a run by id, including multi-output runs", async () => {
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const urlStr = typeof url === "string" ? url : url.toString();
+      expect(urlStr.endsWith("/v1/blueprints/runs/run-2")).toBe(true);
+      return new Response(
+        JSON.stringify({
+          id: "run-2",
+          blueprint: "hook-variants",
+          status: "completed",
+          outputs: [
+            { label: "hook1", url: "https://signed/1" },
+            { label: "hook2", url: "https://signed/2" },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerGetBlueprintRun(server, makeClient(fetchMock));
+    const result = await tools.get("get_blueprint_run")!.callback({ id: "run-2" });
+    expect(parseResult(result).outputs).toHaveLength(2);
+  });
+});
+
+describe("run_blueprint_and_wait tool", () => {
+  it("polls until completed", async () => {
+    let calls = 0;
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      calls += 1;
+      if (init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ id: "run-3", status: "pending", blueprint: "resize-format" }),
+          { status: 201 },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          id: "run-3",
+          blueprint: "resize-format",
+          status: calls >= 3 ? "completed" : "processing",
+          output_url: calls >= 3 ? "https://signed/out.mp4" : null,
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerRunBlueprintAndWait(server, makeClient(fetchMock));
+    const result = await tools.get("run_blueprint_and_wait")!.callback({
+      slug: "resize-format",
+      inputs: { video_url: "https://example.com/a.mp4" },
+      pollIntervalSeconds: 1,
+      timeoutSeconds: 30,
+    });
+    const body = parseResult(result);
+    expect(body.run.status).toBe("completed");
+    expect(body.run.output_url).toBe("https://signed/out.mp4");
+  }, 15_000);
+
+  it("returns early with awaitingReview when the run pauses for transcript review", async () => {
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        return new Response(
+          JSON.stringify({ id: "run-4", status: "pending", blueprint: "caption-video" }),
+          { status: 201 },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          id: "run-4",
+          blueprint: "caption-video",
+          status: "awaiting_review",
+          srt_text: "1\n00:00:00,000 --> 00:00:01,000\nhello\n",
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerRunBlueprintAndWait(server, makeClient(fetchMock));
+    const result = await tools.get("run_blueprint_and_wait")!.callback({
+      slug: "caption-video",
+      inputs: { video_url: "https://example.com/a.mp4" },
+      pollIntervalSeconds: 1,
+      timeoutSeconds: 30,
+    });
+    const body = parseResult(result);
+    expect(body.awaitingReview).toBe(true);
+    expect(body.run.srt_text).toContain("hello");
+    expect(body.message).toContain("continue_blueprint_run");
+  }, 15_000);
+});
+
+describe("continue_blueprint_run tool", () => {
+  it("posts the SRT to the continue endpoint", async () => {
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const urlStr = typeof url === "string" ? url : url.toString();
+      expect(urlStr.endsWith("/v1/blueprints/runs/run-4/continue")).toBe(true);
+      expect(JSON.parse(init!.body as string)).toEqual({ srt_text: "edited srt" });
+      return new Response(
+        JSON.stringify({ id: "run-4", blueprint: "caption-video", status: "processing" }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const { server, tools } = capturingServer();
+    registerContinueBlueprintRun(server, makeClient(fetchMock));
+    const result = await tools.get("continue_blueprint_run")!.callback({
+      id: "run-4",
+      srt_text: "edited srt",
+    });
+    expect(parseResult(result).status).toBe("processing");
   });
 });

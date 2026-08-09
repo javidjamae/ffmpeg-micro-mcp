@@ -83,6 +83,42 @@ export interface Transcribe {
   [key: string]: unknown;
 }
 
+export type BlueprintRunStatus =
+  | "pending"
+  | "processing"
+  | "awaiting_review"
+  | "completed"
+  | "failed";
+
+export interface BlueprintOutput {
+  label: string;
+  url: string;
+}
+
+/**
+ * A blueprint run. NOTE: unlike /v1/transcodes and /v1/upload, the blueprint
+ * routes return plain bodies (no {success, result} envelope).
+ */
+export interface BlueprintRun {
+  id: string;
+  blueprint: string;
+  status: BlueprintRunStatus;
+  step?: string | null;
+  /** Signed URL (10-min TTL). Single-output blueprints. */
+  output_url?: string | null;
+  /** Multi-output blueprints (listing-kit, hook-variants). Prefer over output_url when present. */
+  outputs?: BlueprintOutput[];
+  error_message?: string | null;
+  tokens_charged?: number;
+  tokens_spent?: number;
+  /** Present when status is awaiting_review (caption-video transcript review). */
+  srt_text?: string;
+  created_at?: string;
+  completed_at?: string | null;
+  // Passthrough for everything the server returns.
+  [key: string]: unknown;
+}
+
 export interface PresignedUploadUrlRequest {
   filename: string;
   contentType: string;

@@ -1,4 +1,5 @@
 import type {
+  BlueprintRun,
   CancelTranscodeResponse,
   ConfirmUploadRequest,
   ConfirmUploadResponse,
@@ -146,5 +147,27 @@ export class FFmpegMicroClient {
 
   confirmUpload(body: ConfirmUploadRequest): Promise<ConfirmUploadResponse> {
     return this.request<ConfirmUploadResponse>("POST", "/v1/upload/confirm", body);
+  }
+
+  // Blueprint routes return plain bodies — no {success, result} envelope.
+
+  runBlueprint(slug: string, inputs: Record<string, unknown>): Promise<BlueprintRun> {
+    return this.request<BlueprintRun>(
+      "POST",
+      `/v1/blueprints/${encodeURIComponent(slug)}/runs`,
+      inputs,
+    );
+  }
+
+  getBlueprintRun(id: string): Promise<BlueprintRun> {
+    return this.request<BlueprintRun>("GET", `/v1/blueprints/runs/${encodeURIComponent(id)}`);
+  }
+
+  continueBlueprintRun(id: string, srtText: string): Promise<BlueprintRun> {
+    return this.request<BlueprintRun>(
+      "POST",
+      `/v1/blueprints/runs/${encodeURIComponent(id)}/continue`,
+      { srt_text: srtText },
+    );
   }
 }

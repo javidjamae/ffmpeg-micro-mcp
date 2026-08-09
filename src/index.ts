@@ -13,6 +13,10 @@ import { registerGetTranscribe } from "./tools/getTranscribe.js";
 import { registerGetTranscribeDownload } from "./tools/getTranscribeDownload.js";
 import { registerRequestUploadUrl } from "./tools/requestUploadUrl.js";
 import { registerConfirmUpload } from "./tools/confirmUpload.js";
+import { registerRunBlueprint } from "./tools/runBlueprint.js";
+import { registerGetBlueprintRun } from "./tools/getBlueprintRun.js";
+import { registerRunBlueprintAndWait } from "./tools/runBlueprintAndWait.js";
+import { registerContinueBlueprintRun } from "./tools/continueBlueprintRun.js";
 
 // Loaded from the generated package.json at build time via tsc. This matches
 // the published version so MCP clients can report the server version.
@@ -57,6 +61,10 @@ function createServer(): McpServer {
   registerGetTranscribeDownload(server, client);
   registerRequestUploadUrl(server, client);
   registerConfirmUpload(server, client);
+  registerRunBlueprint(server, client);
+  registerGetBlueprintRun(server, client);
+  registerRunBlueprintAndWait(server, client);
+  registerContinueBlueprintRun(server, client);
 
   return server;
 }
