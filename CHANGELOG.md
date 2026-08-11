@@ -1,5 +1,17 @@
 # @ffmpeg-micro/mcp-server
 
+## 0.4.0
+
+### Minor Changes
+
+- [#20](https://github.com/javidjamae/ffmpeg-micro-mcp/pull/20) [`51bc987`](https://github.com/javidjamae/ffmpeg-micro-mcp/commit/51bc9871ce5fb80cea79a0cf103489bda13a0e8d) Thanks [@javidjamae](https://github.com/javidjamae)! - Add blueprint tools: `run_blueprint`, `get_blueprint_run`, `run_blueprint_and_wait`, and `continue_blueprint_run`. Agents can now run all 15 blueprints (caption-video with transcript review pause/resume, multi-output blueprints like listing-kit and hook-variants, and generative blueprints like product-ad) with clear guidance surfaced for insufficient-token (402), concurrency-cap (429), and temporarily-unavailable (503) responses.
+
+- [#22](https://github.com/javidjamae/ffmpeg-micro-mcp/pull/22) [`426ba68`](https://github.com/javidjamae/ffmpeg-micro-mcp/commit/426ba6868823554cf6141b16bca953bdfecffe16) Thanks [@javidjamae](https://github.com/javidjamae)! - Declare `x-ffm-surface: mcp` on every API request, so blueprint runs started here are attributed to MCP rather than counted as generic API traffic.
+
+  The API records the surface against each blueprint run. Without this header the gateway falls back to `api`, which makes an agent-driven run indistinguishable from a raw API client — the exact question "is anything using blueprints programmatically" could not be answered.
+
+  `FFmpegMicroClientOptions.surface` overrides the default for anything embedding this client that is not the MCP server.
+
 ## 0.3.1
 
 ### Patch Changes
