@@ -23,6 +23,16 @@ export interface FFmpegMicroClientOptions {
   fetch?: typeof fetch;
   /** User-Agent header value. */
   userAgent?: string;
+  /**
+   * Sent as `x-ffm-surface`. The API records it against blueprint runs so a run
+   * started here can be told apart from one started in the dashboard or by a
+   * raw API client — without it every non-dashboard run is recorded as `api`
+   * and the three become indistinguishable in reporting.
+   *
+   * Defaults to `mcp`. Override it if you embed this client in something that
+   * is not the MCP server.
+   */
+  surface?: string;
 }
 
 export class FFmpegMicroApiError extends Error {
@@ -55,6 +65,7 @@ export class FFmpegMicroClient {
   private readonly baseUrl: string;
   private readonly fetchFn: typeof fetch;
   private readonly userAgent: string;
+  private readonly surface: string;
 
   constructor(options: FFmpegMicroClientOptions) {
     if (!options.apiKey) {
@@ -64,6 +75,7 @@ export class FFmpegMicroClient {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.fetchFn = options.fetch ?? fetch;
     this.userAgent = options.userAgent ?? "ffmpeg-micro-mcp";
+    this.surface = options.surface ?? "mcp";
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -71,6 +83,10 @@ export class FFmpegMicroClient {
       Authorization: `Bearer ${this.apiKey}`,
       Accept: "application/json",
       "User-Agent": this.userAgent,
+      // Sent on every request rather than only the blueprint ones: the API
+      // ignores it everywhere else today, and scoping it per-endpoint would
+      // mean remembering to add it each time a surface-aware route appears.
+      "x-ffm-surface": this.surface,
     };
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";

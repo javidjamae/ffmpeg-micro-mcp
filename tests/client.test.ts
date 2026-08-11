@@ -40,6 +40,42 @@ describe("FFmpegMicroClient", () => {
     await client.getTranscode("abc");
   });
 
+  /**
+   * The API records this against blueprint runs. Without it a run started here
+   * is indistinguishable from one made by a raw API client, which is the blind
+   * spot this header exists to close.
+   */
+  it("declares mcp as its surface by default", async () => {
+    const fetchMock = mockFetch((_url, init) => {
+      const headers = new Headers(init.headers);
+      expect(headers.get("x-ffm-surface")).toBe("mcp");
+      return new Response(JSON.stringify({ id: "abc", status: "queued" }), { status: 200 });
+    });
+    const client = new FFmpegMicroClient({ apiKey: "k", fetch: fetchMock });
+    await client.getTranscode("abc");
+  });
+
+  it("lets an embedder declare a different surface", async () => {
+    const fetchMock = mockFetch((_url, init) => {
+      const headers = new Headers(init.headers);
+      expect(headers.get("x-ffm-surface")).toBe("zapier");
+      return new Response(JSON.stringify({ id: "abc", status: "queued" }), { status: 200 });
+    });
+    const client = new FFmpegMicroClient({ apiKey: "k", surface: "zapier", fetch: fetchMock });
+    await client.getTranscode("abc");
+  });
+
+  it("sends the surface on blueprint runs, which is what it is for", async () => {
+    const fetchMock = mockFetch((url, init) => {
+      expect(url).toContain("/v1/blueprints/viral-short/runs");
+      const headers = new Headers(init.headers);
+      expect(headers.get("x-ffm-surface")).toBe("mcp");
+      return new Response(JSON.stringify({ id: "run-1", status: "pending" }), { status: 201 });
+    });
+    const client = new FFmpegMicroClient({ apiKey: "k", fetch: fetchMock });
+    await client.runBlueprint("viral-short", { video_url: "https://example.com/a.mp4" });
+  });
+
   it("sends bearer auth and JSON content-type for POST requests", async () => {
     const fetchMock = mockFetch((_url, init) => {
       const headers = new Headers(init.headers);
