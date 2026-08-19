@@ -261,6 +261,49 @@ describe("transcode_and_wait tool", () => {
     }
   });
 
+  // A failed job must come back as an MCP ERROR result. A success-shaped
+  // payload that merely contains status:"failed" is how every other consumer
+  // of this API (n8n node, Make app) rendered failures as green for months.
+  it("returns isError with the job's error_message when the job fails", async () => {
+    const responses: Array<() => Response> = [
+      () => new Response(JSON.stringify({ id: "abc", status: "pending" }), { status: 201 }),
+      () =>
+        new Response(
+          JSON.stringify({ id: "abc", status: "failed", error_message: "Quota exceeded: Video Processing Minutes." }),
+          { status: 200 },
+        ),
+    ];
+    let call = 0;
+    const fetchMock = vi.fn(async () => {
+      const fn = responses[call++];
+      if (!fn) throw new Error(`Polled past the failed job (fetch call #${call})`);
+      return fn();
+    }) as unknown as typeof fetch;
+
+    const { server, tools } = capturingServer();
+    registerTranscodeAndWait(server, makeClient(fetchMock));
+
+    const origSetTimeout = globalThis.setTimeout;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).setTimeout = (fn: () => void) => origSetTimeout(fn, 0);
+
+    try {
+      const result = await tools.get("transcode_and_wait")!.callback({
+        inputs: [{ url: "gs://b/x.mp4" }],
+        outputFormat: "mp4",
+        pollIntervalSeconds: 1,
+        timeoutSeconds: 30,
+      });
+      expect(result.isError).toBe(true);
+      const body = parseResult(result);
+      expect(body.error).toBe("Quota exceeded: Video Processing Minutes.");
+      expect(body.job.status).toBe("failed");
+      expect(body.downloadUrl).toBeNull();
+    } finally {
+      globalThis.setTimeout = origSetTimeout;
+    }
+  });
+
   it("returns timedOut=true when polling exceeds timeout", async () => {
     let call = 0;
     const fetchMock = vi.fn(async () => {
