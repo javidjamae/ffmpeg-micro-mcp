@@ -110,6 +110,28 @@ export function registerRunBlueprintAndWait(server: McpServer, client: FFmpegMic
           waitedMs: Date.now() - start,
           polls,
         };
+        // Same rule as transcode_and_wait: a failed run is an error result,
+        // never a success-shaped payload. The run object stays in the text.
+        if (run.status === "failed") {
+          return {
+            isError: true,
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    error:
+                      (run as { error_message?: string }).error_message ||
+                      `Blueprint run ${runId} failed without producing output`,
+                    ...result,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
         return jsonResult(result);
       } catch (err) {
         return blueprintErrorResult(err);

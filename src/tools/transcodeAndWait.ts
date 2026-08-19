@@ -100,6 +100,31 @@ export function registerTranscodeAndWait(server: McpServer, client: FFmpegMicroC
           waitedMs: Date.now() - start,
           polls,
         };
+        // A failed or canceled job is a terminal NON-success and must be an
+        // error result, not a success-shaped payload the caller has to
+        // inspect. The full job stays in the text (error_message carries the
+        // real cause, quota guidance included) — but isError is what makes an
+        // agent, or any MCP client, treat it as the failure it is.
+        if (job.status === "failed" || job.status === "canceled") {
+          return {
+            isError: true,
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    error:
+                      job.error_message ||
+                      `Job ${jobId} finished as ${job.status} without producing output`,
+                    ...result,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
         return jsonResult(result);
       } catch (err) {
         return errorResult(err);
