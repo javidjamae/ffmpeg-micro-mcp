@@ -16,7 +16,7 @@ describe("FFmpegMicroClient", () => {
   it("uses the production base URL by default", async () => {
     const fetchMock = mockFetch((url) => {
       expect(url).toBe("https://api.ffmpeg-micro.com/v1/transcodes/abc");
-      return new Response(JSON.stringify({ id: "abc", status: "queued" }), {
+      return new Response(JSON.stringify({ id: "abc", status: "pending" }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
@@ -30,7 +30,7 @@ describe("FFmpegMicroClient", () => {
   it("overrides base URL from options and strips trailing slashes", async () => {
     const fetchMock = mockFetch((url) => {
       expect(url).toBe("http://localhost:8081/v1/transcodes/abc");
-      return new Response(JSON.stringify({ id: "abc", status: "queued" }), { status: 200 });
+      return new Response(JSON.stringify({ id: "abc", status: "pending" }), { status: 200 });
     });
     const client = new FFmpegMicroClient({
       apiKey: "k",
@@ -49,7 +49,7 @@ describe("FFmpegMicroClient", () => {
     const fetchMock = mockFetch((_url, init) => {
       const headers = new Headers(init.headers);
       expect(headers.get("x-ffm-surface")).toBe("mcp");
-      return new Response(JSON.stringify({ id: "abc", status: "queued" }), { status: 200 });
+      return new Response(JSON.stringify({ id: "abc", status: "pending" }), { status: 200 });
     });
     const client = new FFmpegMicroClient({ apiKey: "k", fetch: fetchMock });
     await client.getTranscode("abc");
@@ -59,7 +59,7 @@ describe("FFmpegMicroClient", () => {
     const fetchMock = mockFetch((_url, init) => {
       const headers = new Headers(init.headers);
       expect(headers.get("x-ffm-surface")).toBe("zapier");
-      return new Response(JSON.stringify({ id: "abc", status: "queued" }), { status: 200 });
+      return new Response(JSON.stringify({ id: "abc", status: "pending" }), { status: 200 });
     });
     const client = new FFmpegMicroClient({ apiKey: "k", surface: "zapier", fetch: fetchMock });
     await client.getTranscode("abc");
@@ -84,7 +84,7 @@ describe("FFmpegMicroClient", () => {
       expect(init.body).toBe(
         JSON.stringify({ inputs: [{ url: "gs://b/x.mp4" }], outputFormat: "mp4" }),
       );
-      return new Response(JSON.stringify({ id: "abc", status: "queued" }), { status: 201 });
+      return new Response(JSON.stringify({ id: "abc", status: "pending" }), { status: 201 });
     });
     const client = new FFmpegMicroClient({ apiKey: "my-key", fetch: fetchMock });
     await client.createTranscode({
@@ -109,7 +109,7 @@ describe("FFmpegMicroClient", () => {
   it("encodes the id path segment in getTranscode", async () => {
     const fetchMock = mockFetch((url) => {
       expect(url).toBe("https://api.ffmpeg-micro.com/v1/transcodes/has%2Fslash");
-      return new Response(JSON.stringify({ id: "has/slash", status: "queued" }), { status: 200 });
+      return new Response(JSON.stringify({ id: "has/slash", status: "pending" }), { status: 200 });
     });
     const client = new FFmpegMicroClient({ apiKey: "k", fetch: fetchMock });
     await client.getTranscode("has/slash");
@@ -141,7 +141,7 @@ describe("FFmpegMicroClient", () => {
       const headers = new Headers(init.headers);
       expect(headers.get("Content-Type")).toBeNull();
       return new Response(
-        JSON.stringify({ success: true, message: "Job cancelled successfully", job: { id: "abc", status: "cancelled" } }),
+        JSON.stringify({ success: true, message: "Job cancelled successfully", job: { id: "abc", status: "canceled" } }),
         { status: 200 },
       );
     });

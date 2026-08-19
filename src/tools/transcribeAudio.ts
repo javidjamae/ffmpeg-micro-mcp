@@ -29,7 +29,7 @@ export function registerTranscribeAudio(server: McpServer, client: FFmpegMicroCl
     {
       title: "Transcribe Audio",
       description:
-        "Generate an SRT subtitle file from an audio or video URL using Whisper. Returns a queued job envelope immediately — poll with `get_transcribe` until status is `completed`, then fetch the signed SRT URL with `get_transcribe_download`. The SRT URL can be dropped directly into a transcode's `subtitles='<url>'` filter to burn captions into a video.",
+        "Generate an SRT subtitle file from an audio or video URL using Whisper. Returns a pending job envelope immediately — poll with `get_transcribe` until status is `completed`, then fetch the signed SRT URL with `get_transcribe_download`. The SRT URL can be dropped directly into a transcode's `subtitles='<url>'` filter to burn captions into a video.",
       inputSchema: transcribeAudioInputShape,
     },
     async (args): Promise<McpToolResult> => {

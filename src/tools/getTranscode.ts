@@ -15,7 +15,7 @@ export function registerGetTranscode(server: McpServer, client: FFmpegMicroClien
     {
       title: "Get Transcode",
       description:
-        "Fetch the current state of a single transcode job by ID, including status (queued/processing/completed/failed) and `output_url` when completed.",
+        "Fetch the current state of a single transcode job by ID, including status (pending/processing/completed/failed/canceled) and `output_url` when completed.",
       inputSchema: getTranscodeInputShape,
     },
     async (args): Promise<McpToolResult> => {

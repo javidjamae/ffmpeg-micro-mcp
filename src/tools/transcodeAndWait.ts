@@ -32,7 +32,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
+// "canceled", one L — the spelling the API returns. This previously read
+// "cancelled", so Set.has() never matched a canceled job and the poll loop
+// below ran until the timeout instead of returning.
+const TERMINAL_STATUSES = new Set(["completed", "failed", "canceled"]);
 
 export interface TranscodeAndWaitResult {
   job: Transcode;
@@ -47,7 +50,7 @@ export function registerTranscodeAndWait(server: McpServer, client: FFmpegMicroC
     {
       title: "Transcode and Wait",
       description:
-        "One-shot convenience tool: creates a transcode job, polls until it reaches a terminal state (completed/failed/cancelled) or the timeout expires, and returns the final job plus a signed download URL if completed. Use this when you want the full transcode in one step without managing polling yourself.",
+        "One-shot convenience tool: creates a transcode job, polls until it reaches a terminal state (completed/failed/canceled) or the timeout expires, and returns the final job plus a signed download URL if completed. Use this when you want the full transcode in one step without managing polling yourself.",
       inputSchema: transcodeAndWaitInputShape,
     },
     async (args): Promise<McpToolResult> => {

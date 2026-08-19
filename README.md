@@ -15,7 +15,7 @@ Exposes tools that map onto FFmpeg Micro's public API:
 | `transcode_video` | Create a transcode job from one or more input videos (`gs://` or `https://`). Supports quality/resolution presets and raw FFmpeg options. |
 | `get_transcode` | Fetch the current state of a single job. |
 | `list_transcodes` | List jobs with optional `status`, `page`, `limit`, `since`, `until` filters. |
-| `cancel_transcode` | Cancel a queued or processing job. |
+| `cancel_transcode` | Cancel a pending or processing job. |
 | `get_download_url` | Generate a 10-minute signed HTTPS URL for a completed job's output file. |
 | `transcode_and_wait` | Convenience: create a job, poll until it finishes, return the signed download URL in one call. |
 | `request_upload_url` | Step 1 of the direct-upload flow. Returns a presigned HTTPS URL that the host PUTs the file bytes to. |

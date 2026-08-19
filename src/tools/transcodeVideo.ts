@@ -50,7 +50,7 @@ export function registerTranscodeVideo(server: McpServer, client: FFmpegMicroCli
     {
       title: "Transcode Video",
       description:
-        "Create a video transcode job on FFmpeg Micro. Accepts one or more input videos (gs:// or https://) and an output format. Returns immediately with a queued job — use `get_transcode`, `list_transcodes`, or `transcode_and_wait` to follow progress.",
+        "Create a video transcode job on FFmpeg Micro. Accepts one or more input videos (gs:// or https://) and an output format. Returns immediately with a pending job — use `get_transcode`, `list_transcodes`, or `transcode_and_wait` to follow progress.",
       inputSchema: transcodeVideoInputShape,
     },
     async (args): Promise<McpToolResult> => {

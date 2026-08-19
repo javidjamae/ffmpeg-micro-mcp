@@ -15,7 +15,7 @@ export function registerCancelTranscode(server: McpServer, client: FFmpegMicroCl
     {
       title: "Cancel Transcode",
       description:
-        "Cancel a queued or processing transcode job. Jobs that are already completed, failed, or cancelled cannot be cancelled and return an error.",
+        "Cancel a pending or processing transcode job. Jobs that are already completed, failed, or canceled cannot be canceled and return an error.",
       inputSchema: cancelTranscodeInputShape,
     },
     async (args): Promise<McpToolResult> => {

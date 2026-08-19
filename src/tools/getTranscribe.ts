@@ -15,7 +15,7 @@ export function registerGetTranscribe(server: McpServer, client: FFmpegMicroClie
     {
       title: "Get Transcribe",
       description:
-        "Fetch the current state of a single transcribe job by ID, including status (queued/processing/completed/failed) and `output_url` when completed. Mirrors `get_transcode` but for SRT generation jobs created via `transcribe_audio`.",
+        "Fetch the current state of a single transcribe job by ID, including status (pending/processing/completed/failed/canceled) and `output_url` when completed. Mirrors `get_transcode` but for SRT generation jobs created via `transcribe_audio`.",
       inputSchema: getTranscribeInputShape,
     },
     async (args): Promise<McpToolResult> => {
