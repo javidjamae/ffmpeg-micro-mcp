@@ -5,7 +5,16 @@
  * surface grows.
  */
 
-export type TranscodeStatus = "queued" | "processing" | "completed" | "failed" | "cancelled";
+/**
+ * The statuses the API can actually return, matching the jobs table's CHECK
+ * constraint exactly:
+ *
+ *   CHECK (status = ANY (ARRAY['pending','processing','completed','failed','canceled']))
+ *
+ * Note "canceled", one L. The API uses the American spelling; the British one
+ * silently matches nothing.
+ */
+export type TranscodeStatus = "pending" | "processing" | "completed" | "failed" | "canceled";
 export type OutputFormat = "mp4" | "webm" | "mov";
 export type QualityPreset = "high" | "medium" | "low";
 export type ResolutionPreset = "480p" | "720p" | "1080p" | "4k";

@@ -57,7 +57,7 @@ function parseResult(result: { content: Array<{ type: string; text: string }> })
 describe("transcode_video tool", () => {
   it("creates a job and returns it as JSON", async () => {
     const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ id: "job-1", status: "queued" }), { status: 201 }),
+      new Response(JSON.stringify({ id: "job-1", status: "pending" }), { status: 201 }),
     ) as unknown as typeof fetch;
     const { server, tools } = capturingServer();
     registerTranscodeVideo(server, makeClient(fetchMock));
@@ -68,7 +68,7 @@ describe("transcode_video tool", () => {
       outputFormat: "mp4",
     });
     expect(result.isError).toBeFalsy();
-    expect(parseResult(result)).toEqual({ id: "job-1", status: "queued" });
+    expect(parseResult(result)).toEqual({ id: "job-1", status: "pending" });
   });
 
   it("returns an error result when the API errors", async () => {
@@ -132,7 +132,7 @@ describe("cancel_transcode tool", () => {
       expect(urlStr.endsWith("/v1/transcodes/abc/cancel")).toBe(true);
       expect(init.method).toBe("PATCH");
       return new Response(
-        JSON.stringify({ success: true, message: "Job cancelled successfully", job: { id: "abc", status: "cancelled" } }),
+        JSON.stringify({ success: true, message: "Job cancelled successfully", job: { id: "abc", status: "canceled" } }),
         { status: 200 },
       );
     }) as unknown as typeof fetch;
@@ -141,7 +141,7 @@ describe("cancel_transcode tool", () => {
     const result = await tools.get("cancel_transcode")!.callback({ id: "abc" });
     const body = parseResult(result);
     expect(body.success).toBe(true);
-    expect(body.job.status).toBe("cancelled");
+    expect(body.job.status).toBe("canceled");
   });
 });
 
@@ -165,7 +165,7 @@ describe("get_download_url tool", () => {
 describe("transcode_and_wait tool", () => {
   it("polls until completed and returns the download URL", async () => {
     const responses: Array<() => Response> = [
-      () => new Response(JSON.stringify({ id: "abc", status: "queued" }), { status: 201 }),
+      () => new Response(JSON.stringify({ id: "abc", status: "pending" }), { status: 201 }),
       () => new Response(JSON.stringify({ id: "abc", status: "processing" }), { status: 200 }),
       () =>
         new Response(
@@ -208,12 +208,65 @@ describe("transcode_and_wait tool", () => {
     }
   });
 
+  // Regression test for the bug this file's TERMINAL_STATUSES fix addresses.
+  //
+  // The set previously held "cancelled" (British) while the API returns
+  // "canceled" (American). Set.has() therefore never matched a canceled job,
+  // so the loop polled on until the timeout instead of returning. Nothing
+  // errored — it just hung, for up to 30 minutes.
+  //
+  // The assertion that matters is `polls`. A test that only checked
+  // `body.job.status === "canceled"` would pass even with the bug present,
+  // because the timeout path also returns the last job it saw. Asserting that
+  // it stopped on the SECOND poll is what pins the behaviour.
+  it("stops immediately when a job is canceled, and does not poll to timeout", async () => {
+    const responses: Array<() => Response> = [
+      () => new Response(JSON.stringify({ id: "abc", status: "pending" }), { status: 201 }),
+      () => new Response(JSON.stringify({ id: "abc", status: "canceled" }), { status: 200 }),
+    ];
+    let call = 0;
+    const fetchMock = vi.fn(async () => {
+      const fn = responses[call++];
+      // With the bug present the loop asks for a third response and blows up
+      // here, which is a clearer failure than waiting out a real timeout.
+      if (!fn) throw new Error(`Polled past the canceled job (fetch call #${call})`);
+      return fn();
+    }) as unknown as typeof fetch;
+
+    const { server, tools } = capturingServer();
+    registerTranscodeAndWait(server, makeClient(fetchMock));
+
+    const origSetTimeout = globalThis.setTimeout;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).setTimeout = (fn: () => void) => origSetTimeout(fn, 0);
+
+    try {
+      const result = await tools.get("transcode_and_wait")!.callback({
+        inputs: [{ url: "gs://b/x.mp4" }],
+        outputFormat: "mp4",
+        pollIntervalSeconds: 1,
+        timeoutSeconds: 30,
+      });
+      const body = parseResult(result);
+      expect(body.job.status).toBe("canceled");
+      // `polls` counts the GETs after creation, so a job canceled on the very
+      // first poll gives 1 (the happy-path test above needs two polls to reach
+      // completed, hence its 2).
+      expect(body.polls).toBe(1);
+      expect(body.timedOut).toBeFalsy();
+      // No download URL is fetched for a job that never completed.
+      expect(body.downloadUrl).toBeNull();
+    } finally {
+      globalThis.setTimeout = origSetTimeout;
+    }
+  });
+
   it("returns timedOut=true when polling exceeds timeout", async () => {
     let call = 0;
     const fetchMock = vi.fn(async () => {
       call += 1;
       if (call === 1) {
-        return new Response(JSON.stringify({ id: "abc", status: "queued" }), { status: 201 });
+        return new Response(JSON.stringify({ id: "abc", status: "pending" }), { status: 201 });
       }
       return new Response(JSON.stringify({ id: "abc", status: "processing" }), { status: 200 });
     }) as unknown as typeof fetch;
@@ -262,7 +315,7 @@ describe("transcribe_audio tool", () => {
       const body = JSON.parse(String(init.body));
       expect(body.media_url).toBe("gs://b/speech.mp3");
       return new Response(
-        JSON.stringify({ id: "tr-1", status: "queued", output_format: "srt" }),
+        JSON.stringify({ id: "tr-1", status: "pending", output_format: "srt" }),
         { status: 201 },
       );
     }) as unknown as typeof fetch;
@@ -272,7 +325,7 @@ describe("transcribe_audio tool", () => {
       media_url: "gs://b/speech.mp3",
     });
     expect(result.isError).toBeFalsy();
-    expect(parseResult(result)).toEqual({ id: "tr-1", status: "queued", output_format: "srt" });
+    expect(parseResult(result)).toEqual({ id: "tr-1", status: "pending", output_format: "srt" });
   });
 
   it("forwards optional language and task", async () => {
@@ -283,7 +336,7 @@ describe("transcribe_audio tool", () => {
         language: "en",
         task: "translate",
       });
-      return new Response(JSON.stringify({ id: "tr-2", status: "queued" }), { status: 201 });
+      return new Response(JSON.stringify({ id: "tr-2", status: "pending" }), { status: 201 });
     }) as unknown as typeof fetch;
     const { server, tools } = capturingServer();
     registerTranscribeAudio(server, makeClient(fetchMock));

@@ -5,7 +5,7 @@ import { errorResult, jsonResult, type McpToolResult } from "./common.js";
 
 export const listTranscodesInputShape = {
   status: z
-    .enum(["queued", "processing", "completed", "failed", "cancelled"])
+    .enum(["pending", "processing", "completed", "failed", "canceled"])
     .optional()
     .describe("Filter by job status"),
   page: z.number().int().positive().optional().describe("1-indexed page number"),
